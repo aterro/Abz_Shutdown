@@ -511,7 +511,7 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
     InitializeLib(ImageHandle, SystemTable);
 
-    Print(L"rEFInd Shutdown.efi - ACPI Shutdown Utility\r\n");
+    Print(L"Abz-Shutdown.efi - ACPI Shutdown Utility\r\n");
     Print(L"Attempting to shut down system via ACPI...\r\n");
 
     if (TryAcpiShutdown()) {

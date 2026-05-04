@@ -1,0 +1,29 @@
+STANDALONE BUILD REQUIREMENTS
+==============================
+
+To build Shutdown.efi completely independently from rEFInd, you need:
+
+MINIMUM FILES (2 files):
+  1. shutdown.c          - Complete source code
+  2. build_shutdown.sh   - Standalone build script
+
+SYSTEM REQUIREMENTS:
+  1. build-essential (gcc, ld, objcopy, ar, ranlib, etc.)
+  2. gnu-efi (libefi.a, libgnuefi.a, and /usr/include/efi/)
+
+Install on Ubuntu/Debian:
+  sudo apt-get install build-essential gnu-efi
+
+USAGE:
+  ./build_shutdown.sh
+
+OUTPUT:
+  Shutdown_x64.efi (or Shutdown_ia32.efi / Shutdown_aa64.efi depending on arch)
+
+ARCHITECTURE:
+  Automatically detected. Supports: x86_64, ia32, aarch64
+
+OPTIONAL:
+  - Makefile        - If building within rEFInd project structure
+  - README.md       - Documentation (this project)
+  - refind-sbat.csv - For Secure Boot signing (optional)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # build_shutdown.sh - Standalone builder for ABZ_Shutdown.efi
-# This script builds ABZ_Shutdown.efi on Linux and macOS
+# This script builds ABZ_Shutdown.efi on Linux, macOS, and Windows-hosted Bash environments
 # Dependencies: GNU-EFI (headers/libs) and a matching GNU toolchain
 #
 
@@ -14,6 +14,7 @@ BUILD_DIR="${BUILD_DIR:-.}"
 CLEAN_BUILD="${CLEAN_BUILD:-0}"
 BINARY_NAME="ABZ_Shutdown"
 HOST_OS="$(uname -s)"
+HOST_FAMILY="linux"
 
 ARCH=""
 ARCH_SHORT=""
@@ -29,6 +30,15 @@ GNUEFI_PREFIX="${GNUEFI_PREFIX:-}"
 LDSCRIPT="${LDSCRIPT:-}"
 CRT0="${CRT0:-}"
 FORMAT=""
+
+case "$HOST_OS" in
+    Darwin)
+        HOST_FAMILY="macos"
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        HOST_FAMILY="windows"
+        ;;
+esac
 
 # Color output
 RED='\033[0;31m'
@@ -49,11 +59,17 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+tool_exists() {
+    local tool="${1:-}"
+
+    [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
+}
+
 show_help() {
     cat <<EOF
 Usage: ./build_shutdown.sh [auto|x86_64|ia32|aarch64]
 
-Builds ABZ_Shutdown.efi on Linux and macOS.
+Builds ABZ_Shutdown.efi on Linux, macOS, and Windows-hosted Bash environments.
 
 Environment variables:
   CLEAN_BUILD=1            Remove previous artifacts before building
@@ -68,12 +84,19 @@ EOF
 }
 
 show_install_hint() {
-    case "$HOST_OS" in
-        Darwin)
+    case "$HOST_FAMILY" in
+        macos)
             log_info "On macOS, install a GNU cross toolchain plus GNU-EFI, for example:"
             log_info "  brew install binutils"
             log_info "  brew install x86_64-elf-gcc   # or the matching <arch>-elf-gcc toolchain"
             log_info "Then point GNUEFI_PREFIX at the GNU-EFI install root if needed."
+            ;;
+        windows)
+            log_info "On Windows, run this script from Git Bash or MSYS2 Bash."
+            log_info "Install a GCC/binutils toolchain plus GNU-EFI in that environment."
+            log_info "Common prefixes checked automatically include /usr, /mingw64, /ucrt64,"
+            log_info "/clang64, /clangarm64, and /c/msys64/*."
+            log_info "Set GNUEFI_PREFIX or TOOLCHAIN_PREFIX if your install lives elsewhere."
             ;;
         *)
             log_info "Install with: sudo apt-get install build-essential gnu-efi"
@@ -127,22 +150,38 @@ resolve_toolchain() {
 
         case "$ARCH" in
             x86_64)
-                if [ "$HOST_OS" = "Darwin" ]; then
+                if [ "$HOST_FAMILY" = "macos" ]; then
                     prefixes+=("x86_64-elf-" "x86_64-linux-gnu-" "")
+                elif [ "$HOST_FAMILY" = "windows" ]; then
+                    prefixes+=(
+                        "/mingw64/bin/" "/ucrt64/bin/" "/clang64/bin/" "/usr/bin/"
+                        "/c/msys64/mingw64/bin/" "/c/msys64/ucrt64/bin/" "/c/msys64/clang64/bin/" "/c/msys64/usr/bin/"
+                        "" "x86_64-linux-gnu-" "x86_64-elf-"
+                    )
                 else
                     prefixes+=("" "x86_64-linux-gnu-" "x86_64-elf-")
                 fi
                 ;;
             ia32)
-                if [ "$HOST_OS" = "Darwin" ]; then
+                if [ "$HOST_FAMILY" = "macos" ]; then
                     prefixes+=("i686-elf-" "i686-linux-gnu-" "")
+                elif [ "$HOST_FAMILY" = "windows" ]; then
+                    prefixes+=(
+                        "/mingw32/bin/" "/usr/bin/" "/c/msys64/mingw32/bin/" "/c/msys64/usr/bin/"
+                        "" "i686-linux-gnu-" "i686-elf-"
+                    )
                 else
                     prefixes+=("" "i686-linux-gnu-" "i686-elf-")
                 fi
                 ;;
             aarch64)
-                if [ "$HOST_OS" = "Darwin" ]; then
+                if [ "$HOST_FAMILY" = "macos" ]; then
                     prefixes+=("aarch64-elf-" "aarch64-linux-gnu-" "")
+                elif [ "$HOST_FAMILY" = "windows" ]; then
+                    prefixes+=(
+                        "/clangarm64/bin/" "/usr/bin/" "/c/msys64/clangarm64/bin/" "/c/msys64/usr/bin/"
+                        "" "aarch64-linux-gnu-" "aarch64-elf-"
+                    )
                 else
                     prefixes+=("" "aarch64-linux-gnu-" "aarch64-elf-")
                 fi
@@ -156,11 +195,11 @@ resolve_toolchain() {
             local candidate_ar="${AR:-${prefix}ar}"
             local candidate_ranlib="${RANLIB:-${prefix}ranlib}"
 
-            if command -v "$candidate_cc" >/dev/null 2>&1 &&
-               command -v "$candidate_ld" >/dev/null 2>&1 &&
-               command -v "$candidate_objcopy" >/dev/null 2>&1 &&
-               command -v "$candidate_ar" >/dev/null 2>&1 &&
-               command -v "$candidate_ranlib" >/dev/null 2>&1; then
+            if tool_exists "$candidate_cc" &&
+               tool_exists "$candidate_ld" &&
+               tool_exists "$candidate_objcopy" &&
+               tool_exists "$candidate_ar" &&
+               tool_exists "$candidate_ranlib"; then
                 CC="$candidate_cc"
                 LD="$candidate_ld"
                 OBJCOPY="$candidate_objcopy"
@@ -173,7 +212,7 @@ resolve_toolchain() {
 
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
     for tool in "${required_tools[@]}"; do
-        if [ -z "$tool" ] || ! command -v "$tool" >/dev/null 2>&1; then
+        if [ -z "$tool" ] || ! tool_exists "$tool"; then
             log_error "Required tool not found: ${tool:-<unset>}"
             show_install_hint
             exit 1
@@ -193,7 +232,14 @@ resolve_gnuefi_paths() {
             prefixes+=("$GNUEFI_PREFIX")
         fi
 
-        if command -v brew >/dev/null 2>&1; then
+        if [ "$HOST_FAMILY" = "windows" ]; then
+            [ -n "${MSYSTEM_PREFIX:-}" ] && prefixes+=("$MSYSTEM_PREFIX")
+            [ -n "${MINGW_PREFIX:-}" ] && prefixes+=("$MINGW_PREFIX")
+            prefixes+=("/usr" "/mingw64" "/ucrt64" "/clang64" "/clangarm64" "/mingw32")
+            prefixes+=("/c/msys64/usr" "/c/msys64/mingw64" "/c/msys64/ucrt64" "/c/msys64/clang64" "/c/msys64/clangarm64" "/c/msys64/mingw32")
+        fi
+
+        if [ "$HOST_FAMILY" = "macos" ] && command -v brew >/dev/null 2>&1; then
             prefixes+=("$(brew --prefix)")
         fi
 
@@ -269,7 +315,7 @@ setup_flags() {
     # GNU-EFI specific flags
     GNUEFI_CFLAGS=(-fpic "-I$GNUEFI_INCLUDE_DIR" "-I$GNUEFI_INCLUDE_DIR/$GNUEFI_ARCH" "-I$GNUEFI_INCLUDE_DIR/protocol")
 
-    if [ "$HOST_OS" = "Darwin" ]; then
+    if [ "$HOST_FAMILY" = "macos" ]; then
         sdk_root="${SDKROOT:-}"
         if [ -z "$sdk_root" ] && command -v xcrun >/dev/null 2>&1; then
             sdk_root="$(xcrun --sdk macosx --show-sdk-path)"

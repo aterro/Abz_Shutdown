@@ -44,6 +44,7 @@ New to this project? Begin with these files in this order:
 Essential:
   shutdown.c                    Source code (528 lines)
   build_shutdown.sh            Build script (216 lines)
+  build_shutdown.bat           Windows launcher with fallback
 
 Documentation (READ THESE):
   BUILD_GUIDE.md               ⭐ Quick start guide
@@ -72,6 +73,9 @@ brew install binutils x86_64-elf-gcc
 
 # 2. Build
 ./build_shutdown.sh
+
+# Windows entry point
+build_shutdown.bat
 
 # 3. Done!
 ls -lh ABZ_Shutdown_x64.efi

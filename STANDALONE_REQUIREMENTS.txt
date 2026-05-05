@@ -18,11 +18,20 @@ SYSTEM REQUIREMENTS:
     3. Matching cross GCC toolchain (for example x86_64-elf-gcc)
     4. Xcode Command Line Tools / SDK
 
+  Windows:
+    1. Git Bash, MSYS2 Bash, or WSL
+    2. GNU-EFI headers and libraries in that environment
+    3. GCC, ld, objcopy, ar, and ranlib
+    4. build_shutdown.bat to try any available supported Windows-accessible toolchain
+
 Install on Ubuntu/Debian:
   sudo apt-get install build-essential gnu-efi
 
 Typical macOS tools:
   brew install binutils x86_64-elf-gcc
+
+Windows builder entry point:
+  build_shutdown.bat
 
 USAGE:
   ./build_shutdown.sh
@@ -36,4 +45,5 @@ ARCHITECTURE:
 OPTIONAL:
   - Makefile        - If building within a compatible external tree
   - README.md       - Documentation (this project)
+  - build_shutdown.bat - Windows wrapper for build_shutdown.sh
   - abz-shutdown.csv - For Secure Boot signing (optional)

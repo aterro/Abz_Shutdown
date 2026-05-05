@@ -1,6 +1,6 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-This directory contains the source code and build files for `Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI.
+This directory contains the source code and build files for `Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Windows by using any available supported GNU-EFI toolchain path.
 
 ## Overview
 
@@ -22,12 +22,20 @@ This directory contains the source code and build files for `Shutdown.efi`, a **
 
 ### Option 1: Using the Standalone Build Script (Recommended)
 
-The easiest way to build is using the provided bash script:
+The easiest way to build is using the provided build script:
 
 ```bash
 cd shutdown_efi
 ./build_shutdown.sh
 ```
+
+On Windows, use:
+
+```bat
+build_shutdown.bat
+```
+
+The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL so Windows can build with any available supported GNU-EFI toolchain.
 
 The script will:
 - Detect your architecture automatically (x86_64, ia32, or aarch64)
@@ -55,6 +63,13 @@ Example:
 ```bash
 brew install binutils x86_64-elf-gcc
 ```
+
+**Requirements on Windows:**
+- Git Bash, MSYS2 Bash, or WSL
+- GNU-EFI headers and libraries in that environment
+- GCC, `ld`, `objcopy`, `ar`, and `ranlib`
+
+The build script checks common MSYS2-style prefixes automatically, including `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, `/clangarm64`, and `/c/msys64/*`, and `build_shutdown.bat` can fall through to WSL when that is the usable toolchain.
 
 ### Option 2: Using the Makefile (Legacy external-tree build)
 
@@ -93,7 +108,7 @@ To build `ABZ_Shutdown.efi` independently elsewhere:
 The `build_shutdown.sh` script provides:
 
 - ✅ Automatic architecture detection
-- ✅ Host OS detection (Linux/macOS)
+- ✅ Host OS detection (Linux/macOS/Windows-hosted Bash)
 - ✅ Dependency checking
 - ✅ Colored output for easy reading
 - ✅ Clean build option (`CLEAN_BUILD=1 ./build_shutdown.sh`)
@@ -104,6 +119,9 @@ The `build_shutdown.sh` script provides:
 ```bash
 # Standard build
 ./build_shutdown.sh
+
+# Windows entry point
+build_shutdown.bat
 
 # Force architecture (optional)
 ./build_shutdown.sh x86_64

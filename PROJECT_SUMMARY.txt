@@ -8,7 +8,7 @@ PROJECT OVERVIEW
 
 ABZ_Shutdown.efi is a completely standalone UEFI application that performs
 system shutdown using ACPI tables. It is derived from grub2fm's halt.c and
-uses GNU-EFI plus a suitable host toolchain.
+uses GNU-EFI plus a suitable host toolchain across Linux, macOS, and Windows.
 
 KEY ANSWERS TO YOUR QUESTIONS:
 ================================================================================
@@ -20,15 +20,17 @@ A: ✅ YES - Completely standalone. It does not require any external boot loader
 Q: How can I build it myself later?
 A: ✅ SIMPLE - Just run: ./build_shutdown.sh
    The script auto-detects architecture, checks dependencies, and builds.
+   On Windows, use build_shutdown.bat to try any available supported toolchain.
 
 Q: Did you make a shell builder file?
 A: ✅ YES - build_shutdown.sh (216 lines, fully featured)
-   - Detects Linux vs macOS and the available toolchain
+   - Detects Linux vs macOS vs Windows-hosted Bash environments
    - Auto-detects architecture (x86_64, ia32, aarch64)
    - Checks GNU-EFI dependencies
    - Colored output for easy reading
    - Clean build option: CLEAN_BUILD=1 ./build_shutdown.sh
    - No makefile dependencies required
+   - Works with build_shutdown.bat on Windows, including WSL fallback
 
 Q: Did you create a README?
 A: ✅ YES - Multiple comprehensive READMEs:
@@ -51,8 +53,9 @@ PROJECT STRUCTURE
 ================================================================================
 
 Essential Files (for standalone builds):
-  ✅ shutdown.c (528 lines)                  - Source code
-  ✅ build_shutdown.sh (216 lines)          - Build script
+ ✅ shutdown.c (528 lines)                  - Source code
+ ✅ build_shutdown.sh (216 lines)          - Build script
+ ✅ build_shutdown.bat                     - Windows launcher with fallback
 
 Documentation Files (comprehensive guides):
   📖 INDEX.md                               - Navigation and quick links
@@ -87,15 +90,19 @@ Step 3: Build the binary
   cd shutdown_efi
   ./build_shutdown.sh
 
+  Windows:
+  build_shutdown.bat
+
 Step 4: Use it
   ABZ_Shutdown_x64.efi is ready to deploy!
 
 HOW TO BUILD LATER (COMPLETELY STANDALONE)
 ================================================================================
 
-Copy just 2 files:
+Copy the standalone build files:
   1. shutdown.c
   2. build_shutdown.sh
+  3. build_shutdown.bat (Windows entry point)
 
 Then:
   chmod +x build_shutdown.sh
@@ -141,6 +148,7 @@ To build ABZ_Shutdown.efi:
   - Fedora: gcc, make, gnu-efi-devel
   - Arch: base-devel, gnu-efi
   - macOS: GNU-EFI, binutils, matching *-elf-gcc toolchain, Xcode CLT
+  - Windows: Git Bash/MSYS2/WSL with GNU-EFI and GNU binutils
 
 To run ABZ_Shutdown.efi:
   - UEFI-capable system
@@ -185,6 +193,10 @@ Method 1: Standalone Build Script (RECOMMENDED)
   ✅ Auto-detects architecture
   ✅ Checks dependencies
   ✅ No external makefiles
+
+  On Windows:
+  build_shutdown.bat
+  ✅ Tries any available supported Windows-accessible toolchain path
 
 Method 2: Using Makefile (Optional, for legacy external tree)
   make

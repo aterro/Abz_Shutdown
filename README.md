@@ -2,6 +2,7 @@
 
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS and Windows by using any available supported GNU-EFI toolchain path.
 It's a fix for buggy firmware that restart instead of shutdown using the "reset -s" command such as the B390 series from Asus and others.
+The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to fix shutdown from any efi application or bootloader such as my Refind-for-All and RefindPlus mods.
 
 ## Overview
 

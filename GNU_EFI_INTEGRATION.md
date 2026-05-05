@@ -56,7 +56,9 @@ The updated build script maintains **full backward compatibility** with:
 
 ### Quick Build (Recommended)
 
-Use the convenience wrapper that automatically detects and uses the local gnu-efi:
+Use the convenience wrapper that automatically prefers bundled GNU-EFI files in
+the project `gnuefi/` directory and falls back to an external local GNU-EFI
+tree when needed:
 
 ```bash
 cd ~/Abz_Shutdown

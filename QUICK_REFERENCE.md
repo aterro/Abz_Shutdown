@@ -8,6 +8,9 @@ cd ~/Abz_Shutdown
 ./build_with_local_gnuefi.sh
 ```
 
+The wrapper now prefers bundled GNU-EFI files in `./gnuefi/` and falls back to
+an external `../gnu-efi/` source tree only when needed.
+
 ### Clean Build
 ```bash
 cd ~/Abz_Shutdown
@@ -41,8 +44,8 @@ ln -sf ../lib/libefi.a aarch64/gnuefi/libefi.a
 | Source code | `~/Abz_Shutdown/shutdown.c` |
 | Build script | `~/Abz_Shutdown/build_shutdown.sh` |
 | Convenience wrapper | `~/Abz_Shutdown/build_with_local_gnuefi.sh` |
-| GNU-EFI sources | `~/gnu-efi/` |
-| GNU-EFI libraries | `~/gnu-efi/aarch64/lib/` & `~/gnu-efi/aarch64/gnuefi/` |
+| Bundled GNU-EFI | `~/Abz_Shutdown/gnuefi/` |
+| External GNU-EFI sources | `~/gnu-efi/` |
 
 ## Environment Variables
 

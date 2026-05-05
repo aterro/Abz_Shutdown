@@ -15,9 +15,9 @@ cd Abz_Shutdown
 ```
 ✅ **No installation needed!** Bundled GNU-EFI files included for aarch64. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
 
-### Linux / macOS / Windows
+### Linux / macOS and Windows
 ```bash
-./build_shutdown.sh
+./build_shutdown.sh and ./build_shutdown.bat
 ```
 Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
 

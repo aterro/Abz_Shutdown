@@ -39,7 +39,7 @@ if not defined WSL_SCRIPT_DIR (
 )
 
 echo [INFO] Trying WSL...
-wsl.exe -e bash -lc "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd '%WSL_SCRIPT_DIR%'; bash ./build_shutdown.sh %BUILD_ARGS%"
+wsl.exe -e bash -lc "set -o pipefail; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; cd '%WSL_SCRIPT_DIR%'; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 if "%LAST_EXIT_CODE%"=="0" exit /b 0
 echo [WARN] WSL failed with exit code %LAST_EXIT_CODE%.

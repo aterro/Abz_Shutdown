@@ -19,6 +19,8 @@ brew install binutils x86_64-elf-gcc
 ```
 
 Also install GNU-EFI and point `GNUEFI_PREFIX` at it if it is not already under a standard prefix such as `/usr/local` or `/opt/homebrew`.
+If you keep a local checkout at `./gnu-efi/` or `./gnuefi/`, `./build_shutdown.sh` now
+detects it automatically and prefers it over system locations.
 
 **Windows**
 - Install Git for Windows or MSYS2

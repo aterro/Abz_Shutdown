@@ -27,6 +27,8 @@ RANLIB="${RANLIB:-}"
 GNUEFI_INCLUDE_DIR="${GNUEFI_INCLUDE_DIR:-}"
 GNUEFI_LIB_DIR="${GNUEFI_LIB_DIR:-}"
 GNUEFI_PREFIX="${GNUEFI_PREFIX:-}"
+GNUEFI_LIBEFI_A="${GNUEFI_LIBEFI_A:-}"
+GNUEFI_LIBGNUEFI_A="${GNUEFI_LIBGNUEFI_A:-}"
 LDSCRIPT="${LDSCRIPT:-}"
 CRT0="${CRT0:-}"
 FORMAT=""
@@ -65,6 +67,112 @@ tool_exists() {
     [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
 }
 
+first_existing_file() {
+    local candidate
+
+    for candidate in "$@"; do
+        [ -f "$candidate" ] && {
+            printf '%s\n' "$candidate"
+            return 0
+        }
+    done
+
+    return 1
+}
+
+set_gnuefi_paths() {
+    GNUEFI_INCLUDE_DIR="$1"
+    GNUEFI_LIB_DIR="$2"
+    LDSCRIPT="$3"
+    CRT0="$4"
+    GNUEFI_LIBEFI_A="${5:-$2/libefi.a}"
+    GNUEFI_LIBGNUEFI_A="${6:-$2/libgnuefi.a}"
+}
+
+try_bundled_gnuefi_root() {
+    local root="${1:-}"
+    local bundled_inc="$root/inc"
+    local bundled_lib="$root/lib/$ARCH"
+
+    if [ -d "$bundled_inc" ] &&
+       [ -f "$bundled_lib/libefi.a" ] &&
+       [ -f "$bundled_lib/libgnuefi.a" ] &&
+       [ -f "$bundled_lib/elf_${ARCH}_efi.lds" ] &&
+       [ -f "$bundled_lib/crt0-efi-${ARCH}.o" ]; then
+        set_gnuefi_paths \
+            "$bundled_inc" \
+            "$bundled_lib" \
+            "$bundled_lib/elf_${ARCH}_efi.lds" \
+            "$bundled_lib/crt0-efi-${ARCH}.o"
+        return 0
+    fi
+
+    return 1
+}
+
+try_source_gnuefi_root() {
+    local root="${1:-}"
+    local include_dir="$root/inc"
+    local libefi_a=""
+    local libgnuefi_a=""
+    local crt0_a=""
+    local ldscript_a=""
+    local lib_dir=""
+
+    [ -d "$include_dir" ] || return 1
+
+    libefi_a="$(first_existing_file \
+        "$root/$ARCH/gnuefi/libefi.a" \
+        "$root/$ARCH/lib/libefi.a")" || return 1
+    libgnuefi_a="$(first_existing_file \
+        "$root/$ARCH/gnuefi/libgnuefi.a" \
+        "$root/$ARCH/lib/libgnuefi.a")" || return 1
+    crt0_a="$(first_existing_file \
+        "$root/$ARCH/gnuefi/crt0-efi-${ARCH}.o" \
+        "$root/$ARCH/lib/crt0-efi-${ARCH}.o")" || return 1
+    ldscript_a="$(first_existing_file \
+        "$root/gnuefi/elf_${ARCH}_efi.lds" \
+        "$root/$ARCH/gnuefi/elf_${ARCH}_efi.lds" \
+        "$root/$ARCH/lib/elf_${ARCH}_efi.lds")" || return 1
+
+    lib_dir="$(dirname "$libgnuefi_a")"
+    set_gnuefi_paths "$include_dir" "$lib_dir" "$ldscript_a" "$crt0_a" "$libefi_a" "$libgnuefi_a"
+    return 0
+}
+
+is_gnuefi_source_root() {
+    local root="${1:-}"
+
+    [ -d "$root/inc" ] && [ -d "$root/gnuefi" ] && [ -f "$root/Makefile" ]
+}
+
+build_local_gnuefi_tree() {
+    local root="${1:-}"
+    local as_tool=""
+
+    case "$CC" in
+        *gcc)
+            as_tool="${CC%gcc}as"
+            ;;
+        *clang)
+            as_tool="$CC"
+            ;;
+        *)
+            as_tool="as"
+            ;;
+    esac
+
+    log_info "Building local GNU-EFI tree in $root"
+    make -C "$root" \
+        ARCH="$ARCH" \
+        CC="$CC" \
+        AS="$as_tool" \
+        LD="$LD" \
+        AR="$AR" \
+        RANLIB="$RANLIB" \
+        OBJCOPY="$OBJCOPY"
+}
+
 show_help() {
     cat <<EOF
 Usage: ./build_shutdown.sh [auto|x86_64|ia32|aarch64]
@@ -77,6 +185,7 @@ Environment variables:
   SHUTDOWN_SBAT_CSV=file   Optional SBAT CSV to embed
   TOOLCHAIN_PREFIX=prefix  Tool prefix such as x86_64-elf-
   GNUEFI_PREFIX=path       Prefix containing include/efi and lib/
+                           or a local GNU-EFI tree (gnuefi/ or gnu-efi/)
   GNUEFI_INCLUDE_DIR=path  Override the GNU-EFI include directory
   GNUEFI_LIB_DIR=path      Override the GNU-EFI library directory
   CC/LD/OBJCOPY/AR/RANLIB  Override individual tools
@@ -223,35 +332,47 @@ resolve_toolchain() {
 resolve_gnuefi_paths() {
     local prefixes=()
     local prefix
+    local local_roots=()
     local include_dir
     local lib_dir
     local lib_candidates=()
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
     if [ -z "$GNUEFI_INCLUDE_DIR" ] || [ -z "$GNUEFI_LIB_DIR" ] || [ -z "$LDSCRIPT" ] || [ -z "$CRT0" ]; then
-        # First, check for bundled gnu-efi in the project directory (for Termux and standalone use)
-        if [ -d "$script_dir/gnuefi/inc" ] && [ -d "$script_dir/gnuefi/lib/$ARCH" ]; then
-            local bundled_inc="$script_dir/gnuefi/inc"
-            local bundled_lib="$script_dir/gnuefi/lib/$ARCH"
-            
-            if [ -f "$bundled_lib/libefi.a" ] && \
-               [ -f "$bundled_lib/libgnuefi.a" ] && \
-               [ -f "$bundled_lib/elf_${ARCH}_efi.lds" ] && \
-               [ -f "$bundled_lib/crt0-efi-${ARCH}.o" ]; then
-                GNUEFI_INCLUDE_DIR="$bundled_inc"
-                GNUEFI_LIB_DIR="$bundled_lib"
-                LDSCRIPT="$bundled_lib/elf_${ARCH}_efi.lds"
-                CRT0="$bundled_lib/crt0-efi-${ARCH}.o"
-                log_info "Using bundled GNU-EFI files for $ARCH"
-                return
-            fi
-        fi
-        
-        # Fall back to system-wide search if bundled files not found
         if [ -n "$GNUEFI_PREFIX" ]; then
-            prefixes+=("$GNUEFI_PREFIX")
+            local_roots+=("$GNUEFI_PREFIX")
         fi
 
+        local_roots+=(
+            "$script_dir/gnuefi"
+            "$script_dir/gnu-efi"
+            "$script_dir/../gnuefi"
+            "$script_dir/../gnu-efi"
+        )
+
+        for prefix in "${local_roots[@]}"; do
+            [ -d "$prefix" ] || continue
+
+            if try_bundled_gnuefi_root "$prefix"; then
+                log_info "Using local bundled GNU-EFI files from $prefix"
+                return
+            fi
+
+            if try_source_gnuefi_root "$prefix"; then
+                log_info "Using local GNU-EFI build tree from $prefix"
+                return
+            fi
+
+            if is_gnuefi_source_root "$prefix"; then
+                if build_local_gnuefi_tree "$prefix" && try_source_gnuefi_root "$prefix"; then
+                    log_info "Using freshly built local GNU-EFI tree from $prefix"
+                    return
+                fi
+                log_warn "Found local GNU-EFI source tree at $prefix but could not prepare build artifacts"
+            fi
+        done
+
+        [ -n "$GNUEFI_PREFIX" ] && prefixes+=("$GNUEFI_PREFIX")
         if [ "$HOST_FAMILY" = "windows" ]; then
             [ -n "${MSYSTEM_PREFIX:-}" ] && prefixes+=("$MSYSTEM_PREFIX")
             [ -n "${MINGW_PREFIX:-}" ] && prefixes+=("$MINGW_PREFIX")
@@ -284,15 +405,19 @@ resolve_gnuefi_paths() {
                    [ -f "$lib_dir/libgnuefi.a" ] &&
                    [ -f "${LDSCRIPT:-$lib_dir/elf_${ARCH}_efi.lds}" ] &&
                    [ -f "${CRT0:-$lib_dir/crt0-efi-${ARCH}.o}" ]; then
-                    GNUEFI_INCLUDE_DIR="$include_dir"
-                    GNUEFI_LIB_DIR="$lib_dir"
-                    LDSCRIPT="${LDSCRIPT:-$lib_dir/elf_${ARCH}_efi.lds}"
-                    CRT0="${CRT0:-$lib_dir/crt0-efi-${ARCH}.o}"
+                    set_gnuefi_paths \
+                        "$include_dir" \
+                        "$lib_dir" \
+                        "${LDSCRIPT:-$lib_dir/elf_${ARCH}_efi.lds}" \
+                        "${CRT0:-$lib_dir/crt0-efi-${ARCH}.o}"
                     return
                 fi
             done
         done
     fi
+
+    GNUEFI_LIBEFI_A="${GNUEFI_LIBEFI_A:-$GNUEFI_LIB_DIR/libefi.a}"
+    GNUEFI_LIBGNUEFI_A="${GNUEFI_LIBGNUEFI_A:-$GNUEFI_LIB_DIR/libgnuefi.a}"
 
     if [ ! -d "$GNUEFI_INCLUDE_DIR" ]; then
         log_error "GNU-EFI headers not found"
@@ -300,8 +425,8 @@ resolve_gnuefi_paths() {
         exit 1
     fi
 
-    if [ ! -f "$GNUEFI_LIB_DIR/libefi.a" ] || [ ! -f "$GNUEFI_LIB_DIR/libgnuefi.a" ]; then
-        log_error "GNU-EFI libraries not found in $GNUEFI_LIB_DIR"
+    if [ ! -f "$GNUEFI_LIBEFI_A" ] || [ ! -f "$GNUEFI_LIBGNUEFI_A" ]; then
+        log_error "GNU-EFI libraries not found (libefi=$GNUEFI_LIBEFI_A libgnuefi=$GNUEFI_LIBGNUEFI_A)"
         show_install_hint
         exit 1
     fi
@@ -354,15 +479,15 @@ setup_flags() {
     case "$ARCH" in
         x86_64)
             CFLAGS+=(-DEFIX64 -DEFI_FUNCTION_WRAPPER -m64 -mno-red-zone)
-            FORMAT="--target=efi-app-x86_64"
+            FORMAT="-O efi-app-x86_64"
             ;;
         ia32)
             CFLAGS+=(-DEFI32 -DEFI_FUNCTION_WRAPPER -m32)
-            FORMAT="--target=efi-app-ia32"
+            FORMAT="-O efi-app-ia32"
             ;;
         aarch64)
             CFLAGS+=(-DEFIAARCH64)
-            FORMAT="--target=efi-app-aarch64"
+            FORMAT="-O efi-app-aarch64"
             ;;
     esac
     
@@ -417,15 +542,16 @@ build_binary() {
     log_info "Linking $shared..."
     
     # Detect linker type and set appropriate flags
-    local ld_flags="-T $LDSCRIPT -shared -Bsymbolic -nostdlib -L$GNUEFI_LIB_DIR"
-    local z_flags="-znocombreloc"
+    local ld_flags=(-T "$LDSCRIPT" -shared -Bsymbolic -nostdlib)
+    local z_flags=(-znocombreloc)
     
     # LLD (LLVM linker) needs -z norelro to avoid relro section issues
     if "$LD" --version 2>&1 | grep -q "LLD"; then
-        z_flags="-z norelro -znocombreloc"
+        z_flags=(-z norelro -znocombreloc)
     fi
     
-    "$LD" $ld_flags $z_flags "$CRT0" "$object" -o "$shared" -lefi -lgnuefi "$LIBGCC_FILE"
+    "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
+        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE"
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"

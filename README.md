@@ -13,7 +13,7 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 cd Abz_Shutdown
 ./build_shutdown.sh
 ```
-✅ **No installation needed!** Bundled GNU-EFI files included for aarch64. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
+✅ **No installation needed!** Bundled GNU-EFI files are included for aarch64 and x86_64. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
 
 ### Linux / macOS and Windows
 ```bash
@@ -50,6 +50,7 @@ cd Abz_Shutdown
 The script automatically:
 - Detects your architecture (x86_64, ia32, or aarch64)
 - Uses bundled GNU-EFI files (if available for your arch)
+- Uses a repo-local `gnu-efi/` or `gnuefi/` checkout when present
 - Falls back to system gnu-efi installation
 - Compiles and links the binary
 - Outputs: `ABZ_Shutdown_<arch>.efi`
@@ -100,6 +101,9 @@ Example:
 ```bash
 brew install binutils x86_64-elf-gcc
 ```
+
+If you keep a local GNU-EFI checkout in `./gnu-efi/` or `./gnuefi/`, `./build_shutdown.sh`
+now detects it automatically and will use its built artifacts in preference to a system install.
 
 **Requirements on Windows:**
 - Git Bash, MSYS2 Bash, or WSL

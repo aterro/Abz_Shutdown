@@ -21,7 +21,9 @@ Complete set of GNU-EFI header files (version 4.0.3):
 - `elf_aarch64_efi.lds` - Linker script
 
 #### `lib/x86_64/` (Intel/AMD 64-bit)
-- Pre-built libraries for x86_64 (when available)
+- `libefi.a` - Main EFI library
+- `libgnuefi.a` - GNU-EFI glue code
+- `crt0-efi-x86_64.o` - Startup object file
 - Linker script: `elf_x86_64_efi.lds`
 
 #### `lib/ia32/` (Intel/AMD 32-bit)
@@ -51,7 +53,7 @@ No environment variables or external dependencies needed!
 
 The bundled files currently include:
 - ✅ **aarch64** (ARM 64-bit) - Full support, pre-built
-- ⏳ **x86_64** (Intel/AMD 64-bit) - Linker script included, libraries TBD
+- ✅ **x86_64** (Intel/AMD 64-bit) - Full support, pre-built
 - ⏳ **ia32** (Intel/AMD 32-bit) - Linker script included, libraries TBD
 
 ## Benefits

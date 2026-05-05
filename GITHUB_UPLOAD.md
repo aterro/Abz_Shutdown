@@ -4,7 +4,7 @@
 
 Your ABZ_Shutdown project is ready to upload to GitHub!
 
-**Location**: `/home/abz/Documents/rEFInd-for-All/shutdown_efi/`
+**Location**: `/Users/abz/Documents/Abz_Shutdown/`
 
 **Repository Name**: `abz-shutdown`
 
@@ -38,7 +38,7 @@ Your ABZ_Shutdown project is ready to upload to GitHub!
 After creating the repo, GitHub shows setup commands. Use these commands in your terminal:
 
 ```bash
-cd /home/abz/Documents/rEFInd-for-All/shutdown_efi
+cd /Users/abz/Documents/Abz_Shutdown
 
 # Add GitHub as remote
 git remote add origin https://github.com/aterro/abz-shutdown.git

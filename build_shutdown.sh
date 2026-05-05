@@ -1,18 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # build_shutdown.sh - Standalone builder for ABZ_Shutdown.efi
-# This script builds ABZ_Shutdown.efi independently from rEFInd
-# Dependencies: GNU-EFI (gnuefi, efi headers)
+# This script builds ABZ_Shutdown.efi on Linux and macOS
+# Dependencies: GNU-EFI (headers/libs) and a matching GNU toolchain
 #
 
-set -e
+set -euo pipefail
 
 # Configuration
-ARCH="${1:-x86_64}"
-SBAT_CSV="${SHUTDOWN_SBAT_CSV:-refind-sbat.csv}"
+REQUESTED_ARCH="${1:-auto}"
+SBAT_CSV="${SHUTDOWN_SBAT_CSV:-abz-shutdown.csv}"
 BUILD_DIR="${BUILD_DIR:-.}"
 CLEAN_BUILD="${CLEAN_BUILD:-0}"
 BINARY_NAME="ABZ_Shutdown"
+HOST_OS="$(uname -s)"
+
+ARCH=""
+ARCH_SHORT=""
+GNUEFI_ARCH=""
+CC="${CC:-}"
+LD="${LD:-}"
+OBJCOPY="${OBJCOPY:-}"
+AR="${AR:-}"
+RANLIB="${RANLIB:-}"
+GNUEFI_INCLUDE_DIR="${GNUEFI_INCLUDE_DIR:-}"
+GNUEFI_LIB_DIR="${GNUEFI_LIB_DIR:-}"
+GNUEFI_PREFIX="${GNUEFI_PREFIX:-}"
+LDSCRIPT="${LDSCRIPT:-}"
+CRT0="${CRT0:-}"
+FORMAT=""
 
 # Color output
 RED='\033[0;31m'
@@ -33,59 +49,63 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check dependencies
-check_dependencies() {
-    log_info "Checking dependencies..."
-    
-    local required_tools=("gcc" "objcopy" "ld" "ar" "ranlib")
-    for tool in "${required_tools[@]}"; do
-        if ! command -v "$tool" &> /dev/null; then
-            log_error "$tool not found. Please install build-essential."
-            exit 1
-        fi
-    done
-    
-    # Check for GNU-EFI headers
-    if [ ! -d "/usr/include/efi" ]; then
-        log_error "GNU-EFI headers not found at /usr/include/efi"
-        log_info "Install with: sudo apt-get install gnu-efi"
-        exit 1
-    fi
-    
-    # Check for GNU-EFI libraries
-    if [ ! -f "/usr/lib/libefi.so" ] && [ ! -f "/usr/lib/libefi.a" ]; then
-        log_error "GNU-EFI library not found at /usr/lib"
-        log_info "Install with: sudo apt-get install gnu-efi"
-        exit 1
-    fi
-    
-    log_info "All dependencies found!"
+show_help() {
+    cat <<EOF
+Usage: ./build_shutdown.sh [auto|x86_64|ia32|aarch64]
+
+Builds ABZ_Shutdown.efi on Linux and macOS.
+
+Environment variables:
+  CLEAN_BUILD=1            Remove previous artifacts before building
+  BUILD_DIR=path           Write outputs to a custom directory
+  SHUTDOWN_SBAT_CSV=file   Optional SBAT CSV to embed
+  TOOLCHAIN_PREFIX=prefix  Tool prefix such as x86_64-elf-
+  GNUEFI_PREFIX=path       Prefix containing include/efi and lib/
+  GNUEFI_INCLUDE_DIR=path  Override the GNU-EFI include directory
+  GNUEFI_LIB_DIR=path      Override the GNU-EFI library directory
+  CC/LD/OBJCOPY/AR/RANLIB  Override individual tools
+EOF
+}
+
+show_install_hint() {
+    case "$HOST_OS" in
+        Darwin)
+            log_info "On macOS, install a GNU cross toolchain plus GNU-EFI, for example:"
+            log_info "  brew install binutils"
+            log_info "  brew install x86_64-elf-gcc   # or the matching <arch>-elf-gcc toolchain"
+            log_info "Then point GNUEFI_PREFIX at the GNU-EFI install root if needed."
+            ;;
+        *)
+            log_info "Install with: sudo apt-get install build-essential gnu-efi"
+            ;;
+    esac
 }
 
 # Detect architecture
 detect_arch() {
-    local machine=$(uname -m)
+    local machine
+
+    if [ "$REQUESTED_ARCH" = "auto" ]; then
+        machine="$(uname -m)"
+    else
+        machine="$REQUESTED_ARCH"
+    fi
+
     case "$machine" in
         x86_64)
             ARCH="x86_64"
             ARCH_SHORT="x64"
-            EFIARCH="EFIX64"
             GNUEFI_ARCH="x86_64"
-            TARGET_TRIPLE="x86_64-linux-gnu"
             ;;
-        i[3456789]86)
+        i[3456789]86|ia32)
             ARCH="ia32"
             ARCH_SHORT="ia32"
-            EFIARCH="EFI32"
             GNUEFI_ARCH="ia32"
-            TARGET_TRIPLE="i686-linux-gnu"
             ;;
-        aarch64)
+        aarch64|arm64)
             ARCH="aarch64"
             ARCH_SHORT="aa64"
-            EFIARCH="EFIAARCH64"
             GNUEFI_ARCH="aarch64"
-            TARGET_TRIPLE="aarch64-linux-gnu"
             ;;
         *)
             log_error "Unsupported architecture: $machine"
@@ -96,39 +116,196 @@ detect_arch() {
     log_info "Building for architecture: $ARCH"
 }
 
+resolve_toolchain() {
+    local prefixes=()
+    local prefix
+
+    if [ -z "$CC" ] || [ -z "$LD" ] || [ -z "$OBJCOPY" ] || [ -z "$AR" ] || [ -z "$RANLIB" ]; then
+        if [ -n "${TOOLCHAIN_PREFIX:-}" ]; then
+            prefixes+=("$TOOLCHAIN_PREFIX")
+        fi
+
+        case "$ARCH" in
+            x86_64)
+                if [ "$HOST_OS" = "Darwin" ]; then
+                    prefixes+=("x86_64-elf-" "x86_64-linux-gnu-" "")
+                else
+                    prefixes+=("" "x86_64-linux-gnu-" "x86_64-elf-")
+                fi
+                ;;
+            ia32)
+                if [ "$HOST_OS" = "Darwin" ]; then
+                    prefixes+=("i686-elf-" "i686-linux-gnu-" "")
+                else
+                    prefixes+=("" "i686-linux-gnu-" "i686-elf-")
+                fi
+                ;;
+            aarch64)
+                if [ "$HOST_OS" = "Darwin" ]; then
+                    prefixes+=("aarch64-elf-" "aarch64-linux-gnu-" "")
+                else
+                    prefixes+=("" "aarch64-linux-gnu-" "aarch64-elf-")
+                fi
+                ;;
+        esac
+
+        for prefix in "${prefixes[@]}"; do
+            local candidate_cc="${CC:-${prefix}gcc}"
+            local candidate_ld="${LD:-${prefix}ld}"
+            local candidate_objcopy="${OBJCOPY:-${prefix}objcopy}"
+            local candidate_ar="${AR:-${prefix}ar}"
+            local candidate_ranlib="${RANLIB:-${prefix}ranlib}"
+
+            if command -v "$candidate_cc" >/dev/null 2>&1 &&
+               command -v "$candidate_ld" >/dev/null 2>&1 &&
+               command -v "$candidate_objcopy" >/dev/null 2>&1 &&
+               command -v "$candidate_ar" >/dev/null 2>&1 &&
+               command -v "$candidate_ranlib" >/dev/null 2>&1; then
+                CC="$candidate_cc"
+                LD="$candidate_ld"
+                OBJCOPY="$candidate_objcopy"
+                AR="$candidate_ar"
+                RANLIB="$candidate_ranlib"
+                break
+            fi
+        done
+    fi
+
+    local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
+    for tool in "${required_tools[@]}"; do
+        if [ -z "$tool" ] || ! command -v "$tool" >/dev/null 2>&1; then
+            log_error "Required tool not found: ${tool:-<unset>}"
+            show_install_hint
+            exit 1
+        fi
+    done
+}
+
+resolve_gnuefi_paths() {
+    local prefixes=()
+    local prefix
+    local include_dir
+    local lib_dir
+    local lib_candidates=()
+
+    if [ -z "$GNUEFI_INCLUDE_DIR" ] || [ -z "$GNUEFI_LIB_DIR" ] || [ -z "$LDSCRIPT" ] || [ -z "$CRT0" ]; then
+        if [ -n "$GNUEFI_PREFIX" ]; then
+            prefixes+=("$GNUEFI_PREFIX")
+        fi
+
+        if command -v brew >/dev/null 2>&1; then
+            prefixes+=("$(brew --prefix)")
+        fi
+
+        prefixes+=("/usr/local" "/opt/homebrew" "/opt/local" "/usr")
+
+        for prefix in "${prefixes[@]}"; do
+            [ -n "$prefix" ] || continue
+
+            include_dir="${GNUEFI_INCLUDE_DIR:-$prefix/include/efi}"
+            lib_candidates=(
+                "${GNUEFI_LIB_DIR:-$prefix/lib}"
+                "$prefix/lib64"
+                "$prefix/lib/gnu-efi"
+            )
+
+            if [ ! -d "$include_dir" ]; then
+                continue
+            fi
+
+            for lib_dir in "${lib_candidates[@]}"; do
+                if [ -f "$lib_dir/libefi.a" ] &&
+                   [ -f "$lib_dir/libgnuefi.a" ] &&
+                   [ -f "${LDSCRIPT:-$lib_dir/elf_${ARCH}_efi.lds}" ] &&
+                   [ -f "${CRT0:-$lib_dir/crt0-efi-${ARCH}.o}" ]; then
+                    GNUEFI_INCLUDE_DIR="$include_dir"
+                    GNUEFI_LIB_DIR="$lib_dir"
+                    LDSCRIPT="${LDSCRIPT:-$lib_dir/elf_${ARCH}_efi.lds}"
+                    CRT0="${CRT0:-$lib_dir/crt0-efi-${ARCH}.o}"
+                    return
+                fi
+            done
+        done
+    fi
+
+    if [ ! -d "$GNUEFI_INCLUDE_DIR" ]; then
+        log_error "GNU-EFI headers not found"
+        show_install_hint
+        exit 1
+    fi
+
+    if [ ! -f "$GNUEFI_LIB_DIR/libefi.a" ] || [ ! -f "$GNUEFI_LIB_DIR/libgnuefi.a" ]; then
+        log_error "GNU-EFI libraries not found in $GNUEFI_LIB_DIR"
+        show_install_hint
+        exit 1
+    fi
+
+    if [ ! -f "$LDSCRIPT" ] || [ ! -f "$CRT0" ]; then
+        log_error "GNU-EFI linker support files not found"
+        show_install_hint
+        exit 1
+    fi
+}
+
+# Check dependencies
+check_dependencies() {
+    log_info "Checking dependencies..."
+    resolve_toolchain
+    resolve_gnuefi_paths
+    log_info "Using toolchain: CC=$CC LD=$LD OBJCOPY=$OBJCOPY"
+    log_info "Using GNU-EFI: include=$GNUEFI_INCLUDE_DIR lib=$GNUEFI_LIB_DIR"
+    log_info "All dependencies found!"
+}
+
 # Set compiler flags
 setup_flags() {
     # Optimization and safety flags
-    OPTIMFLAGS="-Os -fno-strict-aliasing -fno-tree-loop-distribute-patterns"
-    CFLAGS="$OPTIMFLAGS -fno-stack-protector -fshort-wchar -Wall -DMDEPKG_NDEBUG"
+    local libgcc_file
+    local sdk_root=""
+
+    OPTIMFLAGS=(-Os -fno-strict-aliasing -fno-tree-loop-distribute-patterns)
+    CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -DMDEPKG_NDEBUG)
     
     # GNU-EFI specific flags
-    GNUEFI_CFLAGS="-fpic -I/usr/include/efi -I/usr/include/efi/$GNUEFI_ARCH -I/usr/include/efi/protocol"
+    GNUEFI_CFLAGS=(-fpic "-I$GNUEFI_INCLUDE_DIR" "-I$GNUEFI_INCLUDE_DIR/$GNUEFI_ARCH" "-I$GNUEFI_INCLUDE_DIR/protocol")
+
+    if [ "$HOST_OS" = "Darwin" ]; then
+        sdk_root="${SDKROOT:-}"
+        if [ -z "$sdk_root" ] && command -v xcrun >/dev/null 2>&1; then
+            sdk_root="$(xcrun --sdk macosx --show-sdk-path)"
+        fi
+
+        if [ -n "$sdk_root" ] && [ -d "$sdk_root/usr/include" ]; then
+            GNUEFI_CFLAGS+=("-isystem" "$sdk_root/usr/include")
+        fi
+    fi
     
     # Architecture specific flags
     case "$ARCH" in
         x86_64)
-            CFLAGS="$CFLAGS -DEFIX64 -DEFI_FUNCTION_WRAPPER -m64 -mno-red-zone"
+            CFLAGS+=(-DEFIX64 -DEFI_FUNCTION_WRAPPER -m64 -mno-red-zone)
             FORMAT="--target=efi-app-x86_64"
-            LDSCRIPT="/usr/lib/elf_x86_64_efi.lds"
-            CRT0="/usr/lib/crt0-efi-x86_64.o"
             ;;
         ia32)
-            CFLAGS="$CFLAGS -DEFIx32 -DEFI_FUNCTION_WRAPPER -m32"
+            CFLAGS+=(-DEFI32 -DEFI_FUNCTION_WRAPPER -m32)
             FORMAT="--target=efi-app-ia32"
-            LDSCRIPT="/usr/lib/elf_i386_efi.lds"
-            CRT0="/usr/lib/crt0-efi-ia32.o"
             ;;
         aarch64)
-            CFLAGS="$CFLAGS -DEFIAARCH64"
+            CFLAGS+=(-DEFIAARCH64)
             FORMAT="--target=efi-app-aarch64"
-            LDSCRIPT="/usr/lib/elf_aarch64_efi.lds"
-            CRT0="/usr/lib/crt0-efi-aarch64.o"
             ;;
     esac
     
-    CFLAGS="$CFLAGS -D__MAKEWITH_GNUEFI"
-    ALL_CFLAGS="$CFLAGS $GNUEFI_CFLAGS"
+    CFLAGS+=(-D__MAKEWITH_GNUEFI)
+    ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
+    libgcc_file="$("$CC" --print-libgcc-file-name)"
+
+    if [ ! -f "$libgcc_file" ]; then
+        log_error "Unable to locate libgcc via $CC"
+        exit 1
+    fi
+
+    LIBGCC_FILE="$libgcc_file"
     
     log_info "Compilation flags configured"
 }
@@ -136,23 +313,25 @@ setup_flags() {
 # Build the binary
 build_binary() {
     local source="shutdown.c"
-    local object="shutdown.o"
-    local shared="${BINARY_NAME}_${ARCH_SHORT}.so"
-    local binary="${BINARY_NAME}_${ARCH_SHORT}.efi"
+    local object="$BUILD_DIR/shutdown.o"
+    local shared="$BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.so"
+    local binary="$BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.efi"
     
     if [ ! -f "$source" ]; then
         log_error "Source file $source not found"
         exit 1
     fi
+
+    mkdir -p "$BUILD_DIR"
     
     if [ "$CLEAN_BUILD" = "1" ]; then
         log_info "Cleaning previous build artifacts..."
-        rm -f "$object" "$shared" "$binary" ABZ_Shutdown_*.efi ABZ_Shutdown_*.so
+        rm -f "$object" "$shared" "$binary" "$BUILD_DIR"/ABZ_Shutdown_*.efi "$BUILD_DIR"/ABZ_Shutdown_*.so
     fi
     
     # Compile
     log_info "Compiling $source..."
-    gcc $ALL_CFLAGS -c "$source" -o "$object"
+    "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object"
     if [ ! -f "$object" ]; then
         log_error "Compilation failed"
         exit 1
@@ -160,12 +339,8 @@ build_binary() {
     
     # Link (shared object)
     log_info "Linking $shared..."
-    ld -T "$LDSCRIPT" -shared -Bsymbolic -nostdlib -L/usr/lib -L/usr/lib "$CRT0" \
-        -znocombreloc -zdefs "$object" -o "$shared" -lefi -lgnuefi \
-        /usr/lib/gcc/$TARGET_TRIPLE/*/libgcc.a 2>/dev/null || \
-    ld -T "$LDSCRIPT" -shared -Bsymbolic -nostdlib -L/usr/lib -L/usr/lib "$CRT0" \
-        -znocombreloc -zdefs "$object" -o "$shared" -lefi -lgnuefi \
-        $(gcc --print-libgcc-file-name)
+    "$LD" -T "$LDSCRIPT" -shared -Bsymbolic -nostdlib -L"$GNUEFI_LIB_DIR" "$CRT0" \
+        -znocombreloc -zdefs "$object" -o "$shared" -lefi -lgnuefi "$LIBGCC_FILE"
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
@@ -174,9 +349,9 @@ build_binary() {
     
     # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
-    objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-            -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-            -j .reloc --strip-unneeded $FORMAT "$shared" "$binary"
+    "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+               -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+               -j .reloc --strip-unneeded $FORMAT "$shared" "$binary"
     
     if [ ! -f "$binary" ]; then
         log_error "Binary conversion failed"
@@ -186,8 +361,8 @@ build_binary() {
     # Add SBAT section if file exists
     if [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
-        objcopy --add-section .sbat="$SBAT_CSV" \
-                --adjust-section-vma .sbat+10000000 "$binary"
+        "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
+                   --adjust-section-vma .sbat+10000000 "$binary"
     else
         log_warn "SBAT CSV file not found at $SBAT_CSV (optional)"
     fi
@@ -198,19 +373,25 @@ build_binary() {
 
 # Main
 main() {
+    if [ "$REQUESTED_ARCH" = "--help" ] || [ "$REQUESTED_ARCH" = "-h" ]; then
+        show_help
+        exit 0
+    fi
+
     echo "================================"
     echo "  ABZ_Shutdown.efi Build Script"
     echo "================================"
     echo
-    
-    check_dependencies
+    log_info "Host OS detected: $HOST_OS"
+
     detect_arch
+    check_dependencies
     setup_flags
     build_binary
     
     echo
     log_info "Build successful!"
-    echo "Binary: ./${BINARY_NAME}_${ARCH_SHORT}.efi"
+    echo "Binary: $BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.efi"
 }
 
 main "$@"

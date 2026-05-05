@@ -7,15 +7,15 @@ PROJECT OVERVIEW
 ================================================================================
 
 ABZ_Shutdown.efi is a completely standalone UEFI application that performs
-system shutdown using ACPI tables. It requires NO rEFInd dependencies - only
-GNU-EFI development libraries.
+system shutdown using ACPI tables. It is derived from grub2fm's halt.c and
+uses GNU-EFI plus a suitable host toolchain.
 
 KEY ANSWERS TO YOUR QUESTIONS:
 ================================================================================
 
-Q: Is this a standalone project independent of rEFInd?
-A: ✅ YES - Completely standalone. Only depends on GNU-EFI, not on any rEFInd
-   libraries or code.
+Q: Is this a standalone project?
+A: ✅ YES - Completely standalone. It does not require any external boot loader
+   source tree.
 
 Q: How can I build it myself later?
 A: ✅ SIMPLE - Just run: ./build_shutdown.sh
@@ -23,6 +23,7 @@ A: ✅ SIMPLE - Just run: ./build_shutdown.sh
 
 Q: Did you make a shell builder file?
 A: ✅ YES - build_shutdown.sh (216 lines, fully featured)
+   - Detects Linux vs macOS and the available toolchain
    - Auto-detects architecture (x86_64, ia32, aarch64)
    - Checks GNU-EFI dependencies
    - Colored output for easy reading
@@ -67,7 +68,7 @@ Binary Output:
      shutdown.o (6.7 KB)                    - Object file
 
 Optional Integration:
-  ⚙️  Makefile                              - For rEFInd integration
+  ⚙️  Makefile                              - For legacy external-tree builds
 
 QUICK START (RECOMMENDED)
 ================================================================================
@@ -78,6 +79,9 @@ Step 1: Read the documentation
 
 Step 2: Install dependencies
   sudo apt-get install build-essential gnu-efi
+
+  macOS example:
+  brew install binutils x86_64-elf-gcc
 
 Step 3: Build the binary
   cd shutdown_efi
@@ -97,7 +101,7 @@ Then:
   chmod +x build_shutdown.sh
   ./build_shutdown.sh
 
-No rEFInd repo needed. No extra configuration needed. Just works!
+No external boot-loader repo needed. No extra configuration needed. Just works!
 
 BUILD SCRIPT FEATURES
 ================================================================================
@@ -136,6 +140,7 @@ To build ABZ_Shutdown.efi:
   - Ubuntu/Debian: build-essential, gnu-efi
   - Fedora: gcc, make, gnu-efi-devel
   - Arch: base-devel, gnu-efi
+  - macOS: GNU-EFI, binutils, matching *-elf-gcc toolchain, Xcode CLT
 
 To run ABZ_Shutdown.efi:
   - UEFI-capable system
@@ -181,9 +186,9 @@ Method 1: Standalone Build Script (RECOMMENDED)
   ✅ Checks dependencies
   ✅ No external makefiles
 
-Method 2: Using Makefile (Optional, for rEFInd repo)
+Method 2: Using Makefile (Optional, for legacy external tree)
   make
-  ⚠️  Requires rEFInd directory structure
+  ⚠️  Requires an external build tree
   ⚠️  Less portable
 
 TESTED & VERIFIED
@@ -200,7 +205,7 @@ TESTED & VERIFIED
 FEATURES
 ================================================================================
 
-✓ Completely standalone (no rEFInd required)
+✓ Completely standalone
 ✓ ACPI-based shutdown (clean and efficient)
 ✓ Multiple architecture support
 ✓ Small binary size (41 KB)
@@ -286,7 +291,7 @@ Want to customize?
   → Edit shutdown.c
   → Run ./build_shutdown.sh again
 
-Want to integrate with rEFInd?
+Want to use the legacy Makefile path?
   → Use the provided Makefile
   → Run: make
 

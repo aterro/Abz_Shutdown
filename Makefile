@@ -1,6 +1,6 @@
 #
 # shutdown_efi/Makefile
-# Build control file for the rEFInd Shutdown.efi utility
+# Build control file for the ABZ_Shutdown.efi utility
 #
 
 SRCDIR = .
@@ -10,6 +10,7 @@ VPATH = $(SRCDIR)
 ARCH            = $(shell uname -m | sed s,i[3456789]86,ia32,)
 
 TARGET	= ABZ_Shutdown.efi
+SHUTDOWN_SBAT_CSV ?= abz-shutdown.csv
 
 ifeq ($(ARCH),ia32)
   LIBEG = build32
@@ -45,7 +46,7 @@ $(TARGET): $(SHLIB_TARGET)
 		   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
 		   -j .reloc --strip-unneeded $(FORMAT) $< $@
 ifneq ($(OMIT_SBAT), 1)
-	    $(OBJCOPY) --add-section .sbat=$(SRCDIR)/../$(REFIND_SBAT_CSV) \
+	    $(OBJCOPY) --add-section .sbat=$(SRCDIR)/../$(SHUTDOWN_SBAT_CSV) \
 		       --adjust-section-vma .sbat+10000000 $@
 endif
 	chmod a-x $(TARGET)

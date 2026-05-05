@@ -1,10 +1,10 @@
-# Shutdown.efi - ACPI Shutdown EFI Application
+# ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
 This directory contains the source code and build files for `Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI.
 
 ## Overview
 
-`Shutdown.efi` is extracted from the rEFInd boot loader's shutdown functionality (lines 163-663 of refind/main.c). It provides a minimal UEFI utility to cleanly shut down a system by:
+`ABZ_Shutdown.efi` is derived from `grub2fm`'s `halt.c`. It provides a minimal UEFI utility to cleanly shut down a system by:
 
 1. Locating the ACPI Root System Descriptor Pointer (RSDP)
 2. Parsing the ACPI tables (RSDT, FADT, DSDT, SSDT)
@@ -13,10 +13,10 @@ This directory contains the source code and build files for `Shutdown.efi`, a **
 
 ## Is It Standalone?
 
-**Yes!** Shutdown.efi is **completely independent** of rEFInd. It only depends on:
+**Yes.** `ABZ_Shutdown.efi` is standalone. It only depends on:
 - GNU-EFI libraries (`libefi`, `libgnuefi`)
 - Standard C library
-- No rEFInd-specific code or libraries
+- No boot-loader-specific libraries
 
 ## Building
 
@@ -36,29 +36,40 @@ The script will:
 - Convert to EFI format
 - Output: `Shutdown_x64.efi` (or architecture variant)
 
-**Requirements:**
-- `build-essential` (gcc, ld, objcopy, ar, ranlib)
-- `gnu-efi` package
+**Requirements on Linux:**
+- `build-essential`
+- `gnu-efi`
 
 Install on Ubuntu/Debian:
 ```bash
 sudo apt-get install build-essential gnu-efi
 ```
 
-### Option 2: Using the Makefile (Requires rEFInd Build System)
+**Requirements on macOS:**
+- GNU-EFI headers and libraries
+- GNU binutils
+- A matching cross GCC toolchain such as `x86_64-elf-gcc`
+- Xcode Command Line Tools / SDK
 
-If you're building within the rEFInd repository:
+Example:
+```bash
+brew install binutils x86_64-elf-gcc
+```
+
+### Option 2: Using the Makefile (Legacy external-tree build)
+
+If you're building inside a compatible external tree:
 
 ```bash
 cd shutdown_efi
 make
 ```
 
-This uses the rEFInd build system but is optional.
+This path is optional and less portable than `build_shutdown.sh`.
 
 ## Building Standalone Later
 
-To build Shutdown.efi completely independently from rEFInd in the future:
+To build `ABZ_Shutdown.efi` independently elsewhere:
 
 1. **Copy only these files** to a new directory:
    - `shutdown.c`
@@ -82,6 +93,7 @@ To build Shutdown.efi completely independently from rEFInd in the future:
 The `build_shutdown.sh` script provides:
 
 - ✅ Automatic architecture detection
+- ✅ Host OS detection (Linux/macOS)
 - ✅ Dependency checking
 - ✅ Colored output for easy reading
 - ✅ Clean build option (`CLEAN_BUILD=1 ./build_shutdown.sh`)
@@ -97,7 +109,7 @@ The `build_shutdown.sh` script provides:
 ./build_shutdown.sh x86_64
 
 # Use custom SBAT CSV
-SHUTDOWN_SBAT_CSV=my-sbat.csv ./build_shutdown.sh
+SHUTDOWN_SBAT_CSV=abz-shutdown.csv ./build_shutdown.sh
 
 # Clean build
 CLEAN_BUILD=1 ./build_shutdown.sh
@@ -133,7 +145,7 @@ The application is built using GNU-EFI and includes:
 
 - **shutdown.c** - Complete source code (16.7 KB)
 - **build_shutdown.sh** - Standalone build script (self-contained, no makefile)
-- **Makefile** - Optional makefile for use with rEFInd build system
+- **Makefile** - Optional legacy makefile for external tree builds
 - **README.md** - This documentation
 
 ## Notes

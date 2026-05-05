@@ -1,7 +1,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-// ACPI-related defines and structs (from refind/main.c)
+// ACPI-related defines and structs derived from grub2fm halt.c
 #define ACPI_RSDP_SIGNATURE        "RSD PTR "
 #define ACPI_FADT_SIGNATURE        "FACP"
 #define ACPI_DSDT_SIGNATURE        "DSDT"

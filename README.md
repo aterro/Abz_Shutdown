@@ -1,6 +1,6 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-This directory contains the source code and build files for `Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS and Windows by using any available supported GNU-EFI toolchain path.
+This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS and Windows by using any available supported GNU-EFI toolchain path.
 
 ## Overview
 

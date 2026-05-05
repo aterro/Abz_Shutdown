@@ -226,8 +226,28 @@ resolve_gnuefi_paths() {
     local include_dir
     local lib_dir
     local lib_candidates=()
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
     if [ -z "$GNUEFI_INCLUDE_DIR" ] || [ -z "$GNUEFI_LIB_DIR" ] || [ -z "$LDSCRIPT" ] || [ -z "$CRT0" ]; then
+        # First, check for bundled gnu-efi in the project directory (for Termux and standalone use)
+        if [ -d "$script_dir/gnuefi/inc" ] && [ -d "$script_dir/gnuefi/lib/$ARCH" ]; then
+            local bundled_inc="$script_dir/gnuefi/inc"
+            local bundled_lib="$script_dir/gnuefi/lib/$ARCH"
+            
+            if [ -f "$bundled_lib/libefi.a" ] && \
+               [ -f "$bundled_lib/libgnuefi.a" ] && \
+               [ -f "$bundled_lib/elf_${ARCH}_efi.lds" ] && \
+               [ -f "$bundled_lib/crt0-efi-${ARCH}.o" ]; then
+                GNUEFI_INCLUDE_DIR="$bundled_inc"
+                GNUEFI_LIB_DIR="$bundled_lib"
+                LDSCRIPT="$bundled_lib/elf_${ARCH}_efi.lds"
+                CRT0="$bundled_lib/crt0-efi-${ARCH}.o"
+                log_info "Using bundled GNU-EFI files for $ARCH"
+                return
+            fi
+        fi
+        
+        # Fall back to system-wide search if bundled files not found
         if [ -n "$GNUEFI_PREFIX" ]; then
             prefixes+=("$GNUEFI_PREFIX")
         fi
@@ -309,7 +329,11 @@ setup_flags() {
     local libgcc_file
     local sdk_root=""
 
-    OPTIMFLAGS=(-Os -fno-strict-aliasing -fno-tree-loop-distribute-patterns)
+    OPTIMFLAGS=(-Os -fno-strict-aliasing)
+    # Add GCC-specific flag only if using GCC (not clang)
+    if "$CC" --version 2>&1 | grep -q "gcc"; then
+        OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
+    fi
     CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -DMDEPKG_NDEBUG)
     
     # GNU-EFI specific flags
@@ -341,6 +365,12 @@ setup_flags() {
             FORMAT="--target=efi-app-aarch64"
             ;;
     esac
+    
+    # Detect objcopy type - llvm-objcopy doesn't support --target for EFI
+    if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
+        FORMAT=""
+        log_info "Detected llvm-objcopy (will use default binary conversion)"
+    fi
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
@@ -385,8 +415,17 @@ build_binary() {
     
     # Link (shared object)
     log_info "Linking $shared..."
-    "$LD" -T "$LDSCRIPT" -shared -Bsymbolic -nostdlib -L"$GNUEFI_LIB_DIR" "$CRT0" \
-        -znocombreloc -zdefs "$object" -o "$shared" -lefi -lgnuefi "$LIBGCC_FILE"
+    
+    # Detect linker type and set appropriate flags
+    local ld_flags="-T $LDSCRIPT -shared -Bsymbolic -nostdlib -L$GNUEFI_LIB_DIR"
+    local z_flags="-znocombreloc"
+    
+    # LLD (LLVM linker) needs -z norelro to avoid relro section issues
+    if "$LD" --version 2>&1 | grep -q "LLD"; then
+        z_flags="-z norelro -znocombreloc"
+    fi
+    
+    "$LD" $ld_flags $z_flags "$CRT0" "$object" -o "$shared" -lefi -lgnuefi "$LIBGCC_FILE"
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
@@ -395,9 +434,19 @@ build_binary() {
     
     # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
-    "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-               -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-               -j .reloc --strip-unneeded $FORMAT "$shared" "$binary"
+    
+    # Different section handling for llvm-objcopy vs GNU objcopy
+    if [ -z "$FORMAT" ]; then
+        # llvm-objcopy: include .dynstr since it's referenced by .dynamic
+        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
+                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                   -j .reloc --strip-unneeded "$shared" "$binary"
+    else
+        # GNU objcopy with EFI target format
+        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                   -j .reloc --strip-unneeded $FORMAT "$shared" "$binary"
+    fi
     
     if [ ! -f "$binary" ]; then
         log_error "Binary conversion failed"
@@ -407,8 +456,15 @@ build_binary() {
     # Add SBAT section if file exists
     if [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
-        "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
-                   --adjust-section-vma .sbat+10000000 "$binary"
+        if [ -z "$FORMAT" ]; then
+            # llvm-objcopy doesn't support --adjust-section-vma on non-relocatable files
+            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
+                log_warn "SBAT section addition failed with llvm-objcopy (this is usually safe to ignore)"
+        else
+            # GNU objcopy
+            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
+                       --adjust-section-vma .sbat+10000000 "$binary"
+        fi
     else
         log_warn "SBAT CSV file not found at $SBAT_CSV (optional)"
     fi

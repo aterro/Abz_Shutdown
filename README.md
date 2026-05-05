@@ -1,8 +1,25 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS and Windows by using any available supported GNU-EFI toolchain path.
+This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
+
 It's a fix for buggy firmware that restart instead of shutdown using the "reset -s" command such as the B390 series from Asus and others.
+
 The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to fix shutdown from any efi application or bootloader such as my Refind-for-All and RefindPlus mods.
+
+## 🚀 Quick Start
+
+### Termux (Android) - Super Easy!
+```bash
+cd Abz_Shutdown
+./build_shutdown.sh
+```
+✅ **No installation needed!** Bundled GNU-EFI files included for aarch64. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
+
+### Linux / macOS / Windows
+```bash
+./build_shutdown.sh
+```
+Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
 
 ## Overview
 
@@ -15,36 +32,54 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ## Is It Standalone?
 
-**Yes.** `ABZ_Shutdown.efi` is standalone. It only depends on:
-- GNU-EFI libraries (`libefi`, `libgnuefi`)
-- Standard C library
-- No boot-loader-specific libraries
+**Yes.** `ABZ_Shutdown.efi` is completely standalone and self-contained:
+- ✅ Bundled GNU-EFI libraries for aarch64 (Termux/ARM)
+- ✅ Works with system gnu-efi on other platforms
+- ✅ No boot-loader-specific libraries required
+- ✅ Single command build
 
 ## Building
 
-### Option 1: Using the Standalone Build Script (Recommended)
-
-The easiest way to build is using the provided build script:
+### Quick Build (All Platforms)
 
 ```bash
-cd shutdown_efi
+cd Abz_Shutdown
 ./build_shutdown.sh
 ```
 
-On Windows, use:
+The script automatically:
+- Detects your architecture (x86_64, ia32, or aarch64)
+- Uses bundled GNU-EFI files (if available for your arch)
+- Falls back to system gnu-efi installation
+- Compiles and links the binary
+- Outputs: `ABZ_Shutdown_<arch>.efi`
 
+### Platform-Specific
+
+#### Termux (Easiest!)
+No dependencies needed - just run:
+```bash
+./build_shutdown.sh
+```
+See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md) for details.
+
+#### Linux
+```bash
+# Install dependencies (if bundled files not available)
+sudo apt-get install build-essential gnu-efi
+
+# Build
+./build_shutdown.sh
+```
+
+#### Windows
 ```bat
 build_shutdown.bat
 ```
+The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL.
 
-The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL so Windows can build with any available supported GNU-EFI toolchain.
-
-The script will:
-- Detect your architecture automatically (x86_64, ia32, or aarch64)
-- Check for required dependencies (GNU-EFI)
-- Compile and link the binary
-- Convert to EFI format
-- Output: `Shutdown_x64.efi` (or architecture variant)
+#### macOS
+Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md).
 
 **Requirements on Linux:**
 - `build-essential`

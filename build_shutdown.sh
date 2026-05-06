@@ -543,11 +543,11 @@ build_binary() {
     
     # Detect linker type and set appropriate flags
     local ld_flags=(-T "$LDSCRIPT" -shared -Bsymbolic -nostdlib)
-    local z_flags=(-znocombreloc)
+    local z_flags=(-z noexecstack -znocombreloc)
     
     # LLD (LLVM linker) needs -z norelro to avoid relro section issues
     if "$LD" --version 2>&1 | grep -q "LLD"; then
-        z_flags=(-z norelro -znocombreloc)
+        z_flags=(-z norelro -z noexecstack -znocombreloc)
     fi
     
     "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \

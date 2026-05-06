@@ -8,12 +8,12 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ## 🚀 Quick Start
 
-### Termux (Android) - Super Easy!
+### Termux (Android)
 ```bash
 cd Abz_Shutdown
 ./build_shutdown.sh
 ```
-✅ **No installation needed!** Bundled GNU-EFI files are included for aarch64 and x86_64. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md)
+Bundled GNU-EFI files are included, but Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
 
 ### Linux / macOS and Windows
 ```bash
@@ -52,16 +52,20 @@ The script automatically:
 - Uses bundled GNU-EFI files (if available for your arch)
 - Uses a repo-local `gnu-efi/` or `gnuefi/` checkout when present
 - Falls back to system gnu-efi installation
+- Verifies that `objcopy` can emit a real EFI binary for the selected target
 - Compiles and links the binary
 - Outputs: `ABZ_Shutdown_<arch>.efi`
 
 ### Platform-Specific
 
-#### Termux (Easiest!)
-No dependencies needed - just run:
+#### Termux
+Start with:
 ```bash
+pkg install build-essential
+objcopy --help | grep efi-app
 ./build_shutdown.sh
 ```
+If `objcopy` does not list an `efi-app-*` target, use a Debian/Ubuntu proot environment and install `build-essential gnu-efi binutils`. See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md) for the full flow.
 See [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md) for details.
 
 #### Linux
@@ -211,6 +215,6 @@ The application is built using GNU-EFI and includes:
 
 - This utility is x86/x86-64 specific (ARM64 returns FALSE from TryAcpiShutdown)
 - It requires a functioning ACPI implementation on the system
-- It does not require any external tools or scripts beyond the compiler
+- Building a real EFI binary requires an `objcopy` that supports the `efi-app-*` target for the selected architecture
 - The binary can optionally include SBAT section for Secure Boot signing
 - All ACPI parsing is inline with no external library dependencies

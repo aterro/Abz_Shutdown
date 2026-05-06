@@ -67,6 +67,10 @@ tool_exists() {
     [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
 }
 
+is_termux() {
+    [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ]
+}
+
 objcopy_supports_format() {
     local objcopy="${1:-}"
     local format="${2:-}"
@@ -200,6 +204,11 @@ Environment variables:
   GNUEFI_INCLUDE_DIR=path  Override the GNU-EFI include directory
   GNUEFI_LIB_DIR=path      Override the GNU-EFI library directory
   CC/LD/OBJCOPY/AR/RANLIB  Override individual tools
+
+Package hints:
+  Linux/Debian/Ubuntu      apt-get install build-essential gnu-efi
+  Termux                   pkg install build-essential
+  Termux/proot             apt-get install build-essential gnu-efi binutils
 EOF
 }
 
@@ -219,7 +228,18 @@ show_install_hint() {
             log_info "Set GNUEFI_PREFIX or TOOLCHAIN_PREFIX if your install lives elsewhere."
             ;;
         *)
-            log_info "Install with: sudo apt-get install build-essential gnu-efi"
+            if is_termux || [ "$ARCH" = "aarch64" ]; then
+                log_info "On Termux/aarch64, start with one of:"
+                log_info "  pkg install build-essential"
+                log_info "  apt-get install build-essential gnu-efi"
+                log_info "If objcopy still lacks EFI targets, use a Debian/Ubuntu proot:"
+                log_info "  pkg install proot-distro"
+                log_info "  proot-distro install debian"
+                log_info "  proot-distro login debian"
+                log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
+            else
+                log_info "Install with: sudo apt-get install build-essential gnu-efi"
+            fi
             ;;
     esac
 }
@@ -377,6 +397,13 @@ resolve_objcopy_for_efi() {
 
     log_error "No objcopy with EFI target support for $target was found"
     log_info "Set OBJCOPY to a GNU objcopy that lists $target in 'objcopy --info' or 'objcopy --help'."
+    if is_termux || [ "$ARCH" = "aarch64" ]; then
+        log_info "On Termux, first try: pkg install build-essential"
+        log_info "Then verify support with: objcopy --help | grep efi-app"
+        log_info "If that still shows no EFI targets, use a Debian/Ubuntu proot and install:"
+        log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
+        log_info "Then rebuild there or point OBJCOPY at the proot's GNU objcopy."
+    fi
     return 1
 }
 

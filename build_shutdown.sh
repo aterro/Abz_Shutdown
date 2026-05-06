@@ -15,6 +15,7 @@ CLEAN_BUILD="${CLEAN_BUILD:-0}"
 BINARY_NAME="ABZ_Shutdown"
 HOST_OS="$(uname -s)"
 HOST_FAMILY="linux"
+USE_PROOT=0
 
 ARCH=""
 ARCH_SHORT=""
@@ -69,6 +70,28 @@ tool_exists() {
 
 is_termux() {
     [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ]
+}
+
+has_proot_distro() {
+    command -v proot-distro >/dev/null 2>&1
+}
+
+has_proot_debian() {
+    [ -d "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/debian" ]
+}
+
+proot_debian_has_efi_tools() {
+    local test_objcopy
+    test_objcopy="$(proot-distro login debian -- which objcopy 2>/dev/null || true)"
+    [ -n "$test_objcopy" ] && proot-distro login debian -- objcopy --help 2>&1 | grep -q "efi-app"
+}
+
+run_tool() {
+    if [ "$USE_PROOT" = "1" ]; then
+        proot-distro login debian -- sh -c "cd '$PWD' && $(printf '%q ' "$@")"
+    else
+        "$@"
+    fi
 }
 
 objcopy_supports_format() {
@@ -198,6 +221,8 @@ Environment variables:
   CLEAN_BUILD=1            Remove previous artifacts before building
   BUILD_DIR=path           Write outputs to a custom directory
   SHUTDOWN_SBAT_CSV=file   Optional SBAT CSV to embed
+  PROOT_SETUP=1            Enable proot Debian environment on Termux (interactive)
+  PROOT_AUTO_INSTALL=1     Auto-answer 'yes' to proot setup prompts (non-interactive)
   TOOLCHAIN_PREFIX=prefix  Tool prefix such as x86_64-elf-
   GNUEFI_PREFIX=path       Prefix containing include/efi and lib/
                            or a local GNU-EFI tree (gnuefi/ or gnu-efi/)
@@ -210,6 +235,100 @@ Package hints:
   Termux                   pkg install build-essential
   Termux/proot             apt-get install build-essential gnu-efi binutils
 EOF
+}
+
+ask_yes_no() {
+    local prompt="$1"
+    local response
+    
+    # If running non-interactively or auto-install is enabled, return true
+    if [ "${PROOT_AUTO_INSTALL:-0}" = "1" ]; then
+        log_info "Auto-install enabled, proceeding..."
+        return 0
+    fi
+    
+    # Check if we're running in a non-interactive environment
+    if [ ! -t 0 ]; then
+        log_warn "Non-interactive mode detected, skipping prompt."
+        return 1
+    fi
+    
+    while true; do
+        printf "%s [y/n]: " "$prompt"
+        read -r response
+        case "$response" in
+            [Yy]|[Yy][Ee][Ss])
+                return 0
+                ;;
+            [Nn]|[Nn][Oo])
+                return 1
+                ;;
+            *)
+                echo "Please answer yes (y) or no (n)."
+                ;;
+        esac
+    done
+}
+
+setup_proot_debian() {
+    if ! is_termux; then
+        return 1
+    fi
+
+    if ! has_proot_distro; then
+        echo
+        log_warn "proot-distro is not installed."
+        log_info "To build EFI binaries on Termux, you need proot-distro with a Debian environment."
+        echo
+        if ! ask_yes_no "Do you want to install proot-distro now?"; then
+            log_info "Skipping proot-distro installation."
+            return 1
+        fi
+        
+        log_info "Installing proot-distro..."
+        pkg install -y proot-distro || {
+            log_error "Failed to install proot-distro"
+            return 1
+        }
+    fi
+
+    if ! has_proot_debian; then
+        echo
+        log_warn "Debian proot distribution is not installed."
+        log_info "A Debian environment (~500MB download) is needed for EFI build tools."
+        echo
+        if ! ask_yes_no "Do you want to install Debian proot distribution now?"; then
+            log_info "Skipping Debian installation."
+            return 1
+        fi
+        
+        log_info "Installing Debian proot distribution..."
+        proot-distro install debian || {
+            log_error "Failed to install Debian proot"
+            return 1
+        }
+    fi
+
+    if ! proot_debian_has_efi_tools; then
+        echo
+        log_warn "Build tools are not installed in Debian proot."
+        log_info "Installing build-essential, gnu-efi, and binutils (~300MB)."
+        echo
+        if ! ask_yes_no "Do you want to install the build tools now?"; then
+            log_info "Skipping build tools installation."
+            return 1
+        fi
+        
+        log_info "Installing build tools in Debian proot..."
+        proot-distro login debian -- apt-get update || true
+        proot-distro login debian -- apt-get install -y build-essential gnu-efi binutils || {
+            log_error "Failed to install tools in Debian proot"
+            return 1
+        }
+    fi
+
+    log_info "Proot Debian environment ready with EFI build tools"
+    return 0
 }
 
 show_install_hint() {
@@ -229,14 +348,22 @@ show_install_hint() {
             ;;
         *)
             if is_termux || [ "$ARCH" = "aarch64" ]; then
-                log_info "On Termux/aarch64, start with one of:"
-                log_info "  pkg install build-essential"
-                log_info "  apt-get install build-essential gnu-efi"
-                log_info "If objcopy still lacks EFI targets, use a Debian/Ubuntu proot:"
-                log_info "  pkg install proot-distro"
-                log_info "  proot-distro install debian"
-                log_info "  proot-distro login debian"
-                log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
+                log_info "On Termux/aarch64, objcopy lacks EFI target support."
+                if has_proot_distro && has_proot_debian; then
+                    log_info "Detected proot-distro with Debian installed."
+                    log_info "Run with interactive setup: PROOT_SETUP=1 ./build_shutdown.sh"
+                    log_info "Or auto-install mode: PROOT_SETUP=1 PROOT_AUTO_INSTALL=1 ./build_shutdown.sh"
+                else
+                    log_info "Solution: Use proot-distro with Debian environment."
+                    log_info "Interactive setup: PROOT_SETUP=1 ./build_shutdown.sh"
+                    log_info "Auto-install (non-interactive): PROOT_SETUP=1 PROOT_AUTO_INSTALL=1 ./build_shutdown.sh"
+                    log_info ""
+                    log_info "Or manually setup:"
+                    log_info "  pkg install proot-distro"
+                    log_info "  proot-distro install debian"
+                    log_info "  proot-distro login debian"
+                    log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
+                fi
             else
                 log_info "Install with: sudo apt-get install build-essential gnu-efi"
             fi
@@ -395,14 +522,25 @@ resolve_objcopy_for_efi() {
         fi
     done
 
+    # On Termux, try proot-distro Debian if available
+    if is_termux && has_proot_distro && has_proot_debian; then
+        if proot_debian_has_efi_tools; then
+            log_info "Termux objcopy lacks EFI support, using proot Debian environment"
+            USE_PROOT=1
+            return 0
+        elif [ "${PROOT_SETUP:-0}" = "1" ]; then
+            log_info "Setting up proot Debian environment..."
+            if setup_proot_debian; then
+                USE_PROOT=1
+                return 0
+            fi
+        fi
+    fi
+
     log_error "No objcopy with EFI target support for $target was found"
     log_info "Set OBJCOPY to a GNU objcopy that lists $target in 'objcopy --info' or 'objcopy --help'."
     if is_termux || [ "$ARCH" = "aarch64" ]; then
-        log_info "On Termux, first try: pkg install build-essential"
-        log_info "Then verify support with: objcopy --help | grep efi-app"
-        log_info "If that still shows no EFI targets, use a Debian/Ubuntu proot and install:"
-        log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
-        log_info "Then rebuild there or point OBJCOPY at the proot's GNU objcopy."
+        show_install_hint
     fi
     return 1
 }
@@ -523,6 +661,9 @@ check_dependencies() {
     resolve_gnuefi_paths
     log_info "Using toolchain: CC=$CC LD=$LD OBJCOPY=$OBJCOPY"
     log_info "Using GNU-EFI: include=$GNUEFI_INCLUDE_DIR lib=$GNUEFI_LIB_DIR"
+    if [ "$USE_PROOT" = "1" ]; then
+        log_info "Build mode: Using proot Debian environment for EFI toolchain"
+    fi
     log_info "All dependencies found!"
 }
 
@@ -534,7 +675,7 @@ setup_flags() {
 
     OPTIMFLAGS=(-Os -fno-strict-aliasing)
     # Add GCC-specific flag only if using GCC (not clang)
-    if "$CC" --version 2>&1 | grep -q "gcc"; then
+    if run_tool "$CC" --version 2>&1 | grep -q "gcc"; then
         OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
     fi
     CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
@@ -575,10 +716,16 @@ setup_flags() {
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
-    libgcc_file="$("$CC" --print-libgcc-file-name)"
+    libgcc_file="$(run_tool "$CC" --print-libgcc-file-name)"
 
-    if [ ! -f "$libgcc_file" ]; then
+    if [ -z "$libgcc_file" ]; then
         log_error "Unable to locate libgcc via $CC"
+        exit 1
+    fi
+    
+    # When using proot, the file path is inside the proot, so we can't validate it exists from Termux
+    if [ "$USE_PROOT" != "1" ] && [ ! -f "$libgcc_file" ]; then
+        log_error "Unable to locate libgcc file: $libgcc_file"
         exit 1
     fi
 
@@ -608,7 +755,7 @@ build_binary() {
     
     # Compile
     log_info "Compiling $source..."
-    "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
+    run_tool "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
     if [ ! -f "$object" ]; then
         log_error "Compilation failed"
         exit 1
@@ -622,11 +769,11 @@ build_binary() {
     local z_flags=(-z noexecstack -znocombreloc)
     
     # LLD (LLVM linker) needs -z norelro to avoid relro section issues
-    if "$LD" --version 2>&1 | grep -q "LLD"; then
+    if run_tool "$LD" --version 2>&1 | grep -q "LLD"; then
         z_flags=(-z norelro -z noexecstack -znocombreloc)
     fi
     
-    "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
+    run_tool "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
         "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
@@ -637,7 +784,7 @@ build_binary() {
     # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
 
-    "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+    run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
                -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
                -j .reloc --strip-unneeded -O "$FORMAT" "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     
@@ -654,11 +801,11 @@ build_binary() {
     # Add SBAT section if file exists
     if [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
-        if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
-            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
+        if run_tool "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
+            run_tool "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
                 log_warn "SBAT section addition failed with llvm-objcopy (this is usually safe to ignore)"
         else
-            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
+            run_tool "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
                        --adjust-section-vma .sbat+10000000 "$binary"
         fi
     else

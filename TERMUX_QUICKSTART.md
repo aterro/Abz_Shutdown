@@ -22,7 +22,29 @@ If that command shows the EFI target you need, build normally:
 
 ## If Termux Has No EFI-Capable objcopy
 
-Use a Debian or Ubuntu proot environment:
+### Automatic Setup (Recommended)
+
+The build script can automatically set up a proot Debian environment with proper EFI build tools.
+
+**Interactive mode** (asks for confirmation before installing):
+```bash
+PROOT_SETUP=1 ./build_shutdown.sh
+```
+
+**Non-interactive mode** (auto-installs without prompting):
+```bash
+PROOT_SETUP=1 PROOT_AUTO_INSTALL=1 ./build_shutdown.sh
+```
+
+The script will:
+1. Install `proot-distro` if needed (asks first in interactive mode)
+2. Install Debian distribution (~500MB download, asks first in interactive mode)
+3. Install build tools in Debian (~300MB, asks first in interactive mode)
+4. Build the EFI binary using the proot environment
+
+### Manual Setup
+
+If you prefer to set up proot manually:
 
 ```bash
 pkg install proot-distro
@@ -30,14 +52,13 @@ proot-distro install debian
 proot-distro login debian
 apt-get update
 apt-get install build-essential gnu-efi binutils
+exit
 ```
 
-Then build inside the proot shell:
+Then build normally with `PROOT_SETUP=1`:
 
 ```bash
-cd /path/to/Abz_Shutdown
-objcopy --help | grep efi-app
-./build_shutdown.sh
+PROOT_SETUP=1 ./build_shutdown.sh
 ```
 
 If the EFI-capable `objcopy` lives outside your default `PATH`, point the script at it explicitly:

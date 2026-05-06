@@ -459,7 +459,7 @@ setup_flags() {
     if "$CC" --version 2>&1 | grep -q "gcc"; then
         OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
     fi
-    CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -DMDEPKG_NDEBUG)
+    CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
     
     # GNU-EFI specific flags
     GNUEFI_CFLAGS=(-fpic "-I$GNUEFI_INCLUDE_DIR" "-I$GNUEFI_INCLUDE_DIR/$GNUEFI_ARCH" "-I$GNUEFI_INCLUDE_DIR/protocol")
@@ -532,7 +532,7 @@ build_binary() {
     
     # Compile
     log_info "Compiling $source..."
-    "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object"
+    "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
     if [ ! -f "$object" ]; then
         log_error "Compilation failed"
         exit 1
@@ -551,7 +551,7 @@ build_binary() {
     fi
     
     "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
-        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE"
+        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
@@ -566,12 +566,12 @@ build_binary() {
         # llvm-objcopy: include .dynstr since it's referenced by .dynamic
         "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
                    -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                   -j .reloc --strip-unneeded "$shared" "$binary"
+                   -j .reloc --strip-unneeded "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     else
         # GNU objcopy with EFI target format
         "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
                    -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                   -j .reloc --strip-unneeded $FORMAT "$shared" "$binary"
+                   -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     fi
     
     if [ ! -f "$binary" ]; then

@@ -48,7 +48,6 @@ The updated build script maintains **full backward compatibility** with:
 └── Abz_Shutdown/               # Shutdown EFI application
     ├── shutdown.c              # Source code
     ├── build_shutdown.sh       # Enhanced build script
-    ├── build_with_local_gnuefi.sh  # Convenience wrapper
     └── ABZ_Shutdown_aa64.efi   # Built binary
 ```
 
@@ -56,13 +55,13 @@ The updated build script maintains **full backward compatibility** with:
 
 ### Quick Build (Recommended)
 
-Use the convenience wrapper that automatically prefers bundled GNU-EFI files in
+Use the main build script, which automatically prefers bundled GNU-EFI files in
 the project `gnuefi/` directory and falls back to an external local GNU-EFI
 tree when needed:
 
 ```bash
 cd ~/Abz_Shutdown
-./build_with_local_gnuefi.sh
+./build_shutdown.sh
 ```
 
 ### Manual Build

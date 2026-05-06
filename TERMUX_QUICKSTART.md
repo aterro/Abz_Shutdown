@@ -25,7 +25,7 @@ Previously on Termux, you needed to:
 1. Clone gnu-efi sources separately
 2. Build gnu-efi from source
 3. Set environment variables pointing to gnu-efi
-4. Use a special wrapper script
+4. Follow a separate local-GNU-EFI build flow
 
 **Now on Termux:**
 1. Just run `./build_shutdown.sh` ✅

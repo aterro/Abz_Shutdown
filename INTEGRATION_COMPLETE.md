@@ -17,10 +17,10 @@ Successfully integrated **gnu-efi** sources with **Abz_Shutdown** project and bu
    - ✅ Detects llvm-objcopy vs GNU objcopy and adjusts conversion
    - ✅ **Maintains full backward compatibility** with all platforms
 
-3. **Created convenience wrapper** (`build_with_local_gnuefi.sh`)
+3. **Consolidated local GNU-EFI support into `build_shutdown.sh`**
    - Automatically detects and uses local gnu-efi
    - Builds gnu-efi if needed
-   - Simple one-command build
+   - Keeps the normal one-command build path
 
 ## Quick Start
 
@@ -28,7 +28,7 @@ Successfully integrated **gnu-efi** sources with **Abz_Shutdown** project and bu
 
 ```bash
 cd ~/Abz_Shutdown
-./build_with_local_gnuefi.sh
+./build_shutdown.sh
 ```
 
 Output: `ABZ_Shutdown_aa64.efi` (158 KB)
@@ -37,13 +37,12 @@ Output: `ABZ_Shutdown_aa64.efi` (158 KB)
 
 ```bash
 cd ~/Abz_Shutdown
-CLEAN_BUILD=1 ./build_with_local_gnuefi.sh
+CLEAN_BUILD=1 ./build_shutdown.sh
 ```
 
 ## Files Created/Modified
 
 ### New Files
-- `build_with_local_gnuefi.sh` - Convenience build wrapper
 - `GNU_EFI_INTEGRATION.md` - Detailed integration documentation
 - `INTEGRATION_COMPLETE.md` - This file
 
@@ -99,7 +98,7 @@ Format: UEFI application
 
 ### Development
 1. Modify `shutdown.c` as needed
-2. Rebuild with `./build_with_local_gnuefi.sh`
+2. Rebuild with `./build_shutdown.sh`
 3. Binary updates automatically
 
 ### Documentation
@@ -112,10 +111,10 @@ Format: UEFI application
 Build verified working:
 ```bash
 $ cd ~/Abz_Shutdown
-$ ./build_with_local_gnuefi.sh
-Using GNU-EFI from: /data/data/com.termux/files/home/gnu-efi
-Building for architecture: aarch64
-Building ABZ_Shutdown.efi...
+$ ./build_shutdown.sh
+[INFO] Host OS detected: Linux
+[INFO] Building for architecture: aarch64
+[INFO] Checking dependencies...
 [INFO] Build complete: ./ABZ_Shutdown_aa64.efi
 [INFO] Build successful!
 ```
@@ -123,7 +122,7 @@ Building ABZ_Shutdown.efi...
 ## Questions or Issues?
 
 1. **Build fails?** Check `GNU_EFI_INTEGRATION.md` troubleshooting section
-2. **Need different architecture?** Set `ARCH` environment variable
+2. **Need different architecture?** Pass `x86_64`, `ia32`, or `aarch64` to `./build_shutdown.sh`
 3. **Want verbose output?** Build script shows detailed progress
 
 ---

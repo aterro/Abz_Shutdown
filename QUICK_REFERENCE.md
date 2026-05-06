@@ -5,16 +5,16 @@
 ### Standard Build
 ```bash
 cd ~/Abz_Shutdown
-./build_with_local_gnuefi.sh
+./build_shutdown.sh
 ```
 
-The wrapper now prefers bundled GNU-EFI files in `./gnuefi/` and falls back to
-an external `../gnu-efi/` source tree only when needed.
+The main build script now prefers bundled GNU-EFI files in `./gnuefi/` and falls
+back to an external `../gnu-efi/` source tree only when needed.
 
 ### Clean Build
 ```bash
 cd ~/Abz_Shutdown
-CLEAN_BUILD=1 ./build_with_local_gnuefi.sh
+CLEAN_BUILD=1 ./build_shutdown.sh
 ```
 
 ### Manual Build (Advanced)
@@ -43,7 +43,6 @@ ln -sf ../lib/libefi.a aarch64/gnuefi/libefi.a
 | Built binary | `~/Abz_Shutdown/ABZ_Shutdown_aa64.efi` |
 | Source code | `~/Abz_Shutdown/shutdown.c` |
 | Build script | `~/Abz_Shutdown/build_shutdown.sh` |
-| Convenience wrapper | `~/Abz_Shutdown/build_with_local_gnuefi.sh` |
 | Bundled GNU-EFI | `~/Abz_Shutdown/gnuefi/` |
 | External GNU-EFI sources | `~/gnu-efi/` |
 
@@ -106,7 +105,7 @@ pwd  # Should show .../Abz_Shutdown
 ```
 
 ### Different architecture
-The wrapper auto-detects, but you can override:
+The build script auto-detects, but you can override:
 ```bash
-ARCH=x86_64 ./build_with_local_gnuefi.sh
+./build_shutdown.sh x86_64
 ```

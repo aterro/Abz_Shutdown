@@ -11,7 +11,7 @@ On Termux, users needed to:
 2. Build gnu-efi from source with `make`
 3. Create symlinks for build compatibility
 4. Set 4 environment variables
-5. Use a special wrapper script (`build_with_local_gnuefi.sh`)
+5. Follow a separate local-GNU-EFI-specific build flow
 
 **OR** on other platforms:
 - Install system gnu-efi packages (requires root/admin)

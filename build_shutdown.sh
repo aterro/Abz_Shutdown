@@ -67,6 +67,17 @@ tool_exists() {
     [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
 }
 
+objcopy_supports_format() {
+    local objcopy="${1:-}"
+    local format="${2:-}"
+
+    [ -n "$objcopy" ] && [ -n "$format" ] || return 1
+    tool_exists "$objcopy" || return 1
+
+    "$objcopy" --info 2>/dev/null | grep -Fq "$format" && return 0
+    "$objcopy" --help 2>&1 | grep -Fq "$format"
+}
+
 first_existing_file() {
     local candidate
 
@@ -329,6 +340,46 @@ resolve_toolchain() {
     done
 }
 
+resolve_objcopy_for_efi() {
+    local target="${1:-}"
+    local candidates=()
+    local candidate
+
+    [ -n "$target" ] || return 1
+
+    candidates+=("$OBJCOPY")
+
+    case "$ARCH" in
+        x86_64)
+            candidates+=("x86_64-linux-gnu-objcopy" "x86_64-elf-objcopy")
+            ;;
+        ia32)
+            candidates+=("i686-linux-gnu-objcopy" "i686-elf-objcopy")
+            ;;
+        aarch64)
+            candidates+=("aarch64-linux-gnu-objcopy" "aarch64-elf-objcopy")
+            ;;
+    esac
+
+    candidates+=("gobjcopy" "objcopy")
+
+    for candidate in "${candidates[@]}"; do
+        [ -n "$candidate" ] || continue
+
+        if objcopy_supports_format "$candidate" "$target"; then
+            if [ "$candidate" != "$OBJCOPY" ]; then
+                log_info "Using EFI-capable objcopy: $candidate"
+            fi
+            OBJCOPY="$candidate"
+            return 0
+        fi
+    done
+
+    log_error "No objcopy with EFI target support for $target was found"
+    log_info "Set OBJCOPY to a GNU objcopy that lists $target in 'objcopy --info' or 'objcopy --help'."
+    return 1
+}
+
 resolve_gnuefi_paths() {
     local prefixes=()
     local prefix
@@ -479,22 +530,20 @@ setup_flags() {
     case "$ARCH" in
         x86_64)
             CFLAGS+=(-DEFIX64 -DEFI_FUNCTION_WRAPPER -m64 -mno-red-zone)
-            FORMAT="-O efi-app-x86_64"
+            FORMAT="efi-app-x86_64"
             ;;
         ia32)
             CFLAGS+=(-DEFI32 -DEFI_FUNCTION_WRAPPER -m32)
-            FORMAT="-O efi-app-ia32"
+            FORMAT="efi-app-ia32"
             ;;
         aarch64)
             CFLAGS+=(-DEFIAARCH64)
-            FORMAT="-O efi-app-aarch64"
+            FORMAT="efi-app-aarch64"
             ;;
     esac
-    
-    # Detect objcopy type - llvm-objcopy doesn't support --target for EFI
-    if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
-        FORMAT=""
-        log_info "Detected llvm-objcopy (will use default binary conversion)"
+
+    if ! resolve_objcopy_for_efi "$FORMAT"; then
+        exit 1
     fi
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
@@ -560,34 +609,28 @@ build_binary() {
     
     # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
-    
-    # Different section handling for llvm-objcopy vs GNU objcopy
-    if [ -z "$FORMAT" ]; then
-        # llvm-objcopy: include .dynstr since it's referenced by .dynamic
-        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
-                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                   -j .reloc --strip-unneeded "$shared" "$binary" 2>&1 | grep -v "warning:" || true
-    else
-        # GNU objcopy with EFI target format
-        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                   -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1 | grep -v "warning:" || true
-    fi
+
+    "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+               -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+               -j .reloc --strip-unneeded -O "$FORMAT" "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$binary" ]; then
         log_error "Binary conversion failed"
+        exit 1
+    fi
+
+    if ! head -c 2 "$binary" | grep -q "^MZ"; then
+        log_error "Binary conversion produced a non-EFI output. Check the selected objcopy tool."
         exit 1
     fi
     
     # Add SBAT section if file exists
     if [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
-        if [ -z "$FORMAT" ]; then
-            # llvm-objcopy doesn't support --adjust-section-vma on non-relocatable files
+        if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
             "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
                 log_warn "SBAT section addition failed with llvm-objcopy (this is usually safe to ignore)"
         else
-            # GNU objcopy
             "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
                        --adjust-section-vma .sbat+10000000 "$binary"
         fi

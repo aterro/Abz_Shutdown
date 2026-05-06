@@ -94,15 +94,18 @@ run_tool() {
     fi
 }
 
-objcopy_supports_format() {
-    local objcopy="${1:-}"
-    local format="${2:-}"
+show_objcopy_hint() {
+    local target="${1:-}"
 
-    [ -n "$objcopy" ] && [ -n "$format" ] || return 1
-    tool_exists "$objcopy" || return 1
+    log_info "Set OBJCOPY to a GNU objcopy that can build $target output."
 
-    "$objcopy" --info 2>/dev/null | grep -Fq "$format" && return 0
-    "$objcopy" --help 2>&1 | grep -Fq "$format"
+    if is_termux || [ "$ARCH" = "aarch64" ]; then
+        log_info "On Termux, first try: pkg install build-essential"
+        log_info "Then verify support with: objcopy --help | grep efi-app"
+        log_info "If that still shows no EFI targets, use a Debian/Ubuntu proot and install:"
+        log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
+        log_info "Then rebuild there or point OBJCOPY at the proot's GNU objcopy."
+    fi
 }
 
 first_existing_file() {
@@ -487,64 +490,6 @@ resolve_toolchain() {
     done
 }
 
-resolve_objcopy_for_efi() {
-    local target="${1:-}"
-    local candidates=()
-    local candidate
-
-    [ -n "$target" ] || return 1
-
-    candidates+=("$OBJCOPY")
-
-    case "$ARCH" in
-        x86_64)
-            candidates+=("x86_64-linux-gnu-objcopy" "x86_64-elf-objcopy")
-            ;;
-        ia32)
-            candidates+=("i686-linux-gnu-objcopy" "i686-elf-objcopy")
-            ;;
-        aarch64)
-            candidates+=("aarch64-linux-gnu-objcopy" "aarch64-elf-objcopy")
-            ;;
-    esac
-
-    candidates+=("gobjcopy" "objcopy")
-
-    for candidate in "${candidates[@]}"; do
-        [ -n "$candidate" ] || continue
-
-        if objcopy_supports_format "$candidate" "$target"; then
-            if [ "$candidate" != "$OBJCOPY" ]; then
-                log_info "Using EFI-capable objcopy: $candidate"
-            fi
-            OBJCOPY="$candidate"
-            return 0
-        fi
-    done
-
-    # On Termux, try proot-distro Debian if available
-    if is_termux && has_proot_distro && has_proot_debian; then
-        if proot_debian_has_efi_tools; then
-            log_info "Termux objcopy lacks EFI support, using proot Debian environment"
-            USE_PROOT=1
-            return 0
-        elif [ "${PROOT_SETUP:-0}" = "1" ]; then
-            log_info "Setting up proot Debian environment..."
-            if setup_proot_debian; then
-                USE_PROOT=1
-                return 0
-            fi
-        fi
-    fi
-
-    log_error "No objcopy with EFI target support for $target was found"
-    log_info "Set OBJCOPY to a GNU objcopy that lists $target in 'objcopy --info' or 'objcopy --help'."
-    if is_termux || [ "$ARCH" = "aarch64" ]; then
-        show_install_hint
-    fi
-    return 1
-}
-
 resolve_gnuefi_paths() {
     local prefixes=()
     local prefix
@@ -709,10 +654,6 @@ setup_flags() {
             FORMAT="efi-app-aarch64"
             ;;
     esac
-
-    if ! resolve_objcopy_for_efi "$FORMAT"; then
-        exit 1
-    fi
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
@@ -783,18 +724,27 @@ build_binary() {
     
     # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
+    local objcopy_output=""
+    local objcopy_rc=0
 
-    run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-               -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-               -j .reloc --strip-unneeded -O "$FORMAT" "$shared" "$binary" 2>&1 | grep -v "warning:" || true
-    
-    if [ ! -f "$binary" ]; then
+    set +e
+    objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+                     -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                     -j .reloc --strip-unneeded -O "$FORMAT" "$shared" "$binary" 2>&1)
+    objcopy_rc=$?
+    set -e
+
+    printf '%s\n' "$objcopy_output" | grep -v "warning:" || true
+
+    if [ "$objcopy_rc" -ne 0 ] || [ ! -f "$binary" ]; then
         log_error "Binary conversion failed"
+        show_objcopy_hint "$FORMAT"
         exit 1
     fi
 
     if ! head -c 2 "$binary" | grep -q "^MZ"; then
         log_error "Binary conversion produced a non-EFI output. Check the selected objcopy tool."
+        show_objcopy_hint "$FORMAT"
         exit 1
     fi
     

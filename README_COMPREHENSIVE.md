@@ -79,10 +79,13 @@ brew install binutils x86_64-elf-gcc
 Windows:
 - Git Bash, MSYS2 Bash, or WSL
 - GNU-EFI headers and libraries in that environment
-- GCC, `ld`, `objcopy`, `ar`, and `ranlib`
+- GCC, `ld`, `objcopy`, `ar`, and `ranlib` (mingw32 toolchain), OR
+- LLVM/clang with `ld.lld`, `llvm-objcopy`, `llvm-ar`, `llvm-ranlib` (recommended for mingw32)
 - `build_shutdown.bat` as the Windows entry point
 
 The build script checks common Windows-hosted Bash prefixes such as `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, `/clangarm64`, and `/c/msys64/*`.
+
+> **Note**: The bundled GNU-EFI libraries are ELF format, but mingw32 GCC produces COFF/PE objects. The build script automatically detects this mismatch and switches to an LLVM/clang toolchain for ELF output if available. Set `LLVM_PREFIX` to point to your LLVM installation directory if it's in a non-standard location.
 
 **Optional (for Secure Boot signing):**
 - `abz-shutdown.csv` - SBAT policy file
@@ -185,7 +188,10 @@ The `build_shutdown.sh` script provides:
 - ✅ **No External Dependencies** - Pure bash with standard GNU tools
 - ✅ **SBAT Support** - Optional Secure Boot AT signing
 - ✅ **Clean Builds** - `CLEAN_BUILD=1` option for fresh builds
-- ✅ **Environment Variables** - Customizable via environment
+- ✅ **Environment Variables** - Customizable via environment (CC, LD, OBJCOPY, LLVM_PREFIX, etc.)
+- ✅ **Automatic LLVM/Clang Fallback** - Detects mingw32 COFF/PE toolchain and switches to LLVM/clang for ELF output on Windows
+- ✅ **llvm-objcopy Detection** - Adjusts EFI conversion flags for llvm-objcopy vs GNU objcopy
+- ✅ **aarch64 Support** - Uses `pei-aarch64-little` format for ARM64 EFI binaries
 
 ## Architecture-Specific Notes
 

@@ -24,8 +24,11 @@ detects it automatically and prefers it over system locations.
 
 **Windows**
 - Install Git for Windows or MSYS2
-- Install GNU-EFI plus a GCC/binutils toolchain in that Bash environment
+- Install GNU-EFI plus a GCC/binutils toolchain in that Bash environment, OR
+- Install LLVM/clang for ELF cross-compilation (recommended for mingw32 environments)
 - The builder auto-checks common prefixes such as `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, and `/c/msys64/*`
+
+> **Note**: The bundled GNU-EFI libraries are ELF format. mingw32 GCC produces COFF objects, which cannot be linked with ELF libraries. The build script automatically detects mingw32 GCC and switches to a compatible LLVM/clang toolchain if available. Set the `LLVM_PREFIX` environment variable to point to your LLVM installation directory if it's in a non-standard location.
 
 ### 2. Build the Binary
 ```bash
@@ -138,7 +141,7 @@ EFI_STATUS status = ShellExecuteEx(..., L"ABZ_Shutdown_x64.efi", ...);
 - Fedora: `gcc`, `make`, `gnu-efi-devel`
 - Arch: `base-devel`, `gnu-efi`
 - macOS: GNU-EFI + `binutils` + matching `*-elf-gcc` toolchain
-- Windows: Git Bash, MSYS2, or WSL + GNU-EFI + GCC/binutils toolchain
+- Windows: Git Bash, MSYS2, or WSL + GNU-EFI + GCC/binutils or LLVM/clang toolchain
 
 ### To Run
 - UEFI-capable system

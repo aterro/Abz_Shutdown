@@ -65,7 +65,7 @@ log_error() {
 tool_exists() {
     local tool="${1:-}"
 
-    [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
+    [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ] || [ -x "${tool}.exe" ]; }
 }
 
 is_termux() {
@@ -480,6 +480,112 @@ resolve_toolchain() {
         done
     fi
 
+    # If the compiler produces COFF/PE objects (e.g. mingw32 GCC on Windows),
+    # try to find an LLVM/clang toolchain that can produce ELF output compatible
+    # with the bundled GNU-EFI libraries.
+    # Detection: mingw32 targets produce COFF; check via gcc -v (Target: *mingw32)
+    local compiler_is_mingw=0
+    if [ -n "$CC" ]; then
+        run_tool "$CC" -v 2>&1 | grep -qi "mingw32" && compiler_is_mingw=1
+    fi
+
+    if [ "$compiler_is_mingw" -eq 1 ]; then
+        local llvm_found=0
+
+        find_llvm_toolchain() {
+            local dir="$1"
+            local cc="${LLVM_CC:-$dir/clang}"
+            local ld="${LLVM_LD:-$dir/ld.lld}"
+            local objcopy="${LLVM_OBJCOPY:-$dir/llvm-objcopy}"
+            local ar="${LLVM_AR:-$dir/llvm-ar}"
+            local ranlib="${LLVM_RANLIB:-$dir/llvm-ranlib}"
+
+            if tool_exists "$cc" && tool_exists "$ld" &&
+               tool_exists "$objcopy" && tool_exists "$ar" &&
+               tool_exists "$ranlib"; then
+                log_info "Switching to LLVM/LLD toolchain at $dir (produces ELF, compatible with GNU-EFI)"
+                CC="$cc"
+                LD="$ld"
+                OBJCOPY="$objcopy"
+                AR="$ar"
+                RANLIB="$ranlib"
+                return 0
+            fi
+            return 1
+        }
+
+        # Save original tools in case LLVM objcopy doesn't support EFI format
+        local orig_objcopy="$OBJCOPY"
+
+        # 1) User override via LLVM_PREFIX
+        if [ "$llvm_found" -eq 0 ] && [ -n "${LLVM_PREFIX:-}" ] && [ -d "$LLVM_PREFIX" ]; then
+            find_llvm_toolchain "$LLVM_PREFIX" && llvm_found=1
+        fi
+
+        # 2) Common installation directories (checked before PATH to avoid MSYS2's own clang/ld.lld
+        #    which may not accept GNU-style ELF linker flags like -T)
+        if [ "$llvm_found" -eq 0 ]; then
+            local common_dirs=()
+            case "$HOST_FAMILY" in
+                windows)
+                    common_dirs=(
+                        "/c/LLVM/bin"
+                        "/c/Program Files/LLVM/bin"
+                        "c:/LLVM/bin"
+                        "c:/Program Files/LLVM/bin"
+                    )
+                    if [ -n "${LOCALAPPDATA:-}" ]; then
+                        local appdata_dir
+                        appdata_dir="$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA")"
+                        common_dirs+=("$appdata_dir/Programs/LLVM/bin")
+                    fi
+                    for msys_root in /c/msys64 /c/msys32; do
+                        [ -d "$msys_root" ] && common_dirs+=("$msys_root/clang64/bin" "$msys_root/clangarm64/bin")
+                    done
+                    for drive_root in /c /d /e; do
+                        [ -d "$drive_root/LLVM/bin" ] && common_dirs+=("$drive_root/LLVM/bin")
+                    done
+                    ;;
+                macos)
+                    common_dirs=(
+                        "/usr/local/opt/llvm/bin"
+                        "/opt/homebrew/opt/llvm/bin"
+                    )
+                    for d in /usr/local/Cellar/llvm/*/bin; do
+                        [ -d "$d" ] && common_dirs+=("$d")
+                    done
+                    ;;
+                linux)
+                    for d in /usr/lib/llvm-*/bin /usr/lib/llvm/*/bin /usr/local/llvm*/bin; do
+                        [ -d "$d" ] && common_dirs+=("$d")
+                    done
+                    ;;
+            esac
+
+            for dir in "${common_dirs[@]}"; do
+                find_llvm_toolchain "$dir" && { llvm_found=1; break; }
+            done
+        fi
+
+        # 3) Fall back to PATH
+        if [ "$llvm_found" -eq 0 ] && command -v clang >/dev/null 2>&1; then
+            local clang_dir
+            clang_dir="$(dirname "$(command -v clang)")"
+            find_llvm_toolchain "$clang_dir" && llvm_found=1
+        fi
+
+        if [ "$llvm_found" -eq 1 ]; then
+            # LLVM objcopy lacks efi-app target support; use original (mingw32) objcopy instead
+            if tool_exists "$orig_objcopy"; then
+                OBJCOPY="$orig_objcopy"
+            fi
+        else
+            log_warn "mingw32 toolchain detected (produces COFF objects, not ELF)"
+            log_warn "GNU-EFI libraries are ELF format. Install LLVM/clang for ELF cross-compilation."
+            log_warn "Set LLVM_PREFIX to the directory containing clang, ld.lld, llvm-objcopy, etc."
+        fi
+    fi
+
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
     for tool in "${required_tools[@]}"; do
         if [ -z "$tool" ] || ! tool_exists "$tool"; then
@@ -643,34 +749,50 @@ setup_flags() {
     case "$ARCH" in
         x86_64)
             CFLAGS+=(-DEFIX64 -DEFI_FUNCTION_WRAPPER -m64 -mno-red-zone)
-            FORMAT="efi-app-x86_64"
+            FORMAT="-O efi-app-x86_64"
             ;;
         ia32)
             CFLAGS+=(-DEFI32 -DEFI_FUNCTION_WRAPPER -m32)
-            FORMAT="efi-app-ia32"
+            FORMAT="-O efi-app-ia32"
             ;;
         aarch64)
             CFLAGS+=(-DEFIAARCH64)
-            FORMAT="efi-app-aarch64"
+            FORMAT="-O pei-aarch64-little --subsystem efi-app"
             ;;
     esac
+
+    # llvm-objcopy lacks efi-app target; skip -O flag and rely on default behavior
+    if run_tool "$OBJCOPY" --version 2>/dev/null | grep -iq "llvm-objcopy"; then
+        log_info "Detected llvm-objcopy (will use default binary conversion without EFI target flag)"
+        FORMAT=""
+    fi
+
+    # When using clang as an ELF cross-compiler, add the target triple
+    if run_tool "$CC" --version 2>/dev/null | grep -iq "clang"; then
+        case "$ARCH" in
+            x86_64)  CFLAGS+=(--target=x86_64-unknown-elf)  ;;
+            ia32)    CFLAGS+=(--target=i686-unknown-elf)     ;;
+            aarch64) CFLAGS+=(--target=aarch64-unknown-elf)  ;;
+        esac
+    fi
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
-    libgcc_file="$(run_tool "$CC" --print-libgcc-file-name)"
 
-    if [ -z "$libgcc_file" ]; then
-        log_error "Unable to locate libgcc via $CC"
-        exit 1
+    # libgcc is only needed for GCC (ELF cross-compilers provide it; clang ELF targets do not)
+    LIBGCC_FILE=""
+    if run_tool "$CC" --version 2>/dev/null | grep -qi "gcc"; then
+        libgcc_file="$(run_tool "$CC" --print-libgcc-file-name)"
+        if [ -z "$libgcc_file" ]; then
+            log_error "Unable to locate libgcc via $CC"
+            exit 1
+        fi
+        if [ "$USE_PROOT" != "1" ] && [ ! -f "$libgcc_file" ]; then
+            log_error "Unable to locate libgcc file: $libgcc_file"
+            exit 1
+        fi
+        LIBGCC_FILE="$libgcc_file"
     fi
-    
-    # When using proot, the file path is inside the proot, so we can't validate it exists from Termux
-    if [ "$USE_PROOT" != "1" ] && [ ! -f "$libgcc_file" ]; then
-        log_error "Unable to locate libgcc file: $libgcc_file"
-        exit 1
-    fi
-
-    LIBGCC_FILE="$libgcc_file"
     
     log_info "Compilation flags configured"
 }
@@ -714,8 +836,12 @@ build_binary() {
         z_flags=(-z norelro -z noexecstack -znocombreloc)
     fi
     
+    local ld_libs=("$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A")
+    if [ -n "$LIBGCC_FILE" ]; then
+        ld_libs+=("$LIBGCC_FILE")
+    fi
     run_tool "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
-        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE" 2>&1 | grep -v "warning:" || true
+        "${ld_libs[@]}" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
@@ -728,9 +854,17 @@ build_binary() {
     local objcopy_rc=0
 
     set +e
-    objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-                     -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                     -j .reloc --strip-unneeded -O "$FORMAT" "$shared" "$binary" 2>&1)
+    if [ -z "$FORMAT" ]; then
+        # llvm-objcopy: include .dynstr since it's referenced by .dynamic
+        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
+                         -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                         -j .reloc --strip-unneeded "$shared" "$binary" 2>&1)
+    else
+        # GNU objcopy with EFI target format
+        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
+                         -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                         -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1)
+    fi
     objcopy_rc=$?
     set -e
 
@@ -751,7 +885,8 @@ build_binary() {
     # Add SBAT section if file exists
     if [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
-        if run_tool "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
+        if [ -z "$FORMAT" ]; then
+            # llvm-objcopy doesn't support --adjust-section-vma on non-relocatable files
             run_tool "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
                 log_warn "SBAT section addition failed with llvm-objcopy (this is usually safe to ignore)"
         else

@@ -56,6 +56,7 @@ ln -sf ../lib/libefi.a aarch64/gnuefi/libefi.a
 | `CRT0` | Startup object | `~/gnu-efi/aarch64/gnuefi/crt0-efi-aarch64.o` |
 | `CLEAN_BUILD` | Clean before build | `1` |
 | `BUILD_DIR` | Output directory | `.` (default) |
+| `LLVM_PREFIX` | LLVM/clang installation directory | auto-detected |
 
 ## Toolchain Detection
 
@@ -63,6 +64,7 @@ The build script automatically detects and adapts to:
 - **Compiler**: GCC vs Clang
 - **Linker**: GNU ld vs LLD (LLVM)
 - **objcopy**: GNU objcopy vs llvm-objcopy
+- **Object format**: ELF vs COFF/PE (switches to LLVM/clang on mingw32)
 
 No manual configuration needed!
 
@@ -73,14 +75,16 @@ No manual configuration needed!
 | Termux (this) | Clang/LLVM | ✅ Working |
 | Linux | GCC/GNU | ✅ Compatible |
 | macOS | Cross | ✅ Compatible |
-| Windows | Various | ✅ Compatible |
+| Windows (WSL) | Linux GCC/GNU | ✅ Working |
+| Windows (MSYS2/mingw32) | GCC (auto-switches to LLVM/clang for ELF) | ✅ Working |
+| Windows (LLVM/clang) | Clang/LLD | ✅ Working |
 
 ## Output
 
 - **File**: `ABZ_Shutdown_aa64.efi`
 - **Size**: ~158 KB
-- **Type**: UEFI application for ARM64
-- **Format**: ELF 64-bit LSB shared object
+- **Type**: UEFI application
+- **Conversion**: GNU objcopy (`-O efi-app-*`) or llvm-objcopy (section-based)
 
 ## Documentation
 

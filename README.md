@@ -112,9 +112,12 @@ now detects it automatically and will use its built artifacts in preference to a
 **Requirements on Windows:**
 - Git Bash, MSYS2 Bash, or WSL
 - GNU-EFI headers and libraries in that environment
-- GCC, `ld`, `objcopy`, `ar`, and `ranlib`
+- GCC, `ld`, `objcopy`, `ar`, and `ranlib` (mingw32 toolchain), OR
+- LLVM/clang with `ld.lld`, `llvm-objcopy`, `llvm-ar`, `llvm-ranlib`
 
 The build script checks common MSYS2-style prefixes automatically, including `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, `/clangarm64`, and `/c/msys64/*`, and `build_shutdown.bat` can fall through to WSL when that is the usable toolchain.
+
+> **Note for mingw32 environments**: The bundled GNU-EFI libraries are in ELF format, but the mingw32 GCC toolchain produces COFF/PE objects. The build script automatically detects this and switches to an LLVM/clang toolchain (clang, ld.lld, llvm-objcopy) for ELF output if available. Set `LLVM_PREFIX` to the directory containing the LLVM tools if they are in a non-standard location.
 
 ### Option 2: Using the Makefile (Legacy external-tree build)
 

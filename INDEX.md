@@ -43,7 +43,7 @@ New to this project? Begin with these files in this order:
 ```
 Essential:
   shutdown.c                    Source code (528 lines)
-  build_shutdown.sh            Build script (216 lines)
+  build_shutdown.sh            Build script (900+ lines)
   build_shutdown.bat           Windows launcher with fallback
 
 Documentation (READ THESE):
@@ -55,11 +55,11 @@ Documentation (READ THESE):
 
 Build Artifacts:
   ABZ_Shutdown_x64.efi         ✅ Ready-to-use binary
-  ABZ_Shutdown_x64.so          Compiled object
-  shutdown.o                   Object file
+  ABZ_Shutdown_x64.so          Compiled shared object
 
 Optional:
   Makefile                     Legacy external-tree build file
+  gnuefi/                      Bundled GNU-EFI libraries
 ```
 
 ## 🚀 3-Step Quick Start

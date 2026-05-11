@@ -15,7 +15,6 @@ CLEAN_BUILD="${CLEAN_BUILD:-0}"
 BINARY_NAME="ABZ_Shutdown"
 HOST_OS="$(uname -s)"
 HOST_FAMILY="linux"
-USE_PROOT=0
 
 ARCH=""
 ARCH_SHORT=""
@@ -65,47 +64,7 @@ log_error() {
 tool_exists() {
     local tool="${1:-}"
 
-    [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ] || [ -x "${tool}.exe" ]; }
-}
-
-is_termux() {
-    [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ]
-}
-
-has_proot_distro() {
-    command -v proot-distro >/dev/null 2>&1
-}
-
-has_proot_debian() {
-    [ -d "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/debian" ]
-}
-
-proot_debian_has_efi_tools() {
-    local test_objcopy
-    test_objcopy="$(proot-distro login debian -- which objcopy 2>/dev/null || true)"
-    [ -n "$test_objcopy" ] && proot-distro login debian -- objcopy --help 2>&1 | grep -q "efi-app"
-}
-
-run_tool() {
-    if [ "$USE_PROOT" = "1" ]; then
-        proot-distro login debian -- sh -c "cd '$PWD' && $(printf '%q ' "$@")"
-    else
-        "$@"
-    fi
-}
-
-show_objcopy_hint() {
-    local target="${1:-}"
-
-    log_info "Set OBJCOPY to a GNU objcopy that can build $target output."
-
-    if is_termux || [ "$ARCH" = "aarch64" ]; then
-        log_info "On Termux, first try: pkg install build-essential"
-        log_info "Then verify support with: objcopy --help | grep efi-app"
-        log_info "If that still shows no EFI targets, use a Debian/Ubuntu proot and install:"
-        log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
-        log_info "Then rebuild there or point OBJCOPY at the proot's GNU objcopy."
-    fi
+    [ -n "$tool" ] && { command -v "$tool" >/dev/null 2>&1 || [ -x "$tool" ]; }
 }
 
 first_existing_file() {
@@ -224,114 +183,13 @@ Environment variables:
   CLEAN_BUILD=1            Remove previous artifacts before building
   BUILD_DIR=path           Write outputs to a custom directory
   SHUTDOWN_SBAT_CSV=file   Optional SBAT CSV to embed
-  PROOT_SETUP=1            Enable proot Debian environment on Termux (interactive)
-  PROOT_AUTO_INSTALL=1     Auto-answer 'yes' to proot setup prompts (non-interactive)
   TOOLCHAIN_PREFIX=prefix  Tool prefix such as x86_64-elf-
   GNUEFI_PREFIX=path       Prefix containing include/efi and lib/
                            or a local GNU-EFI tree (gnuefi/ or gnu-efi/)
   GNUEFI_INCLUDE_DIR=path  Override the GNU-EFI include directory
   GNUEFI_LIB_DIR=path      Override the GNU-EFI library directory
   CC/LD/OBJCOPY/AR/RANLIB  Override individual tools
-
-Package hints:
-  Linux/Debian/Ubuntu      apt-get install build-essential gnu-efi
-  Termux                   pkg install build-essential
-  Termux/proot             apt-get install build-essential gnu-efi binutils
 EOF
-}
-
-ask_yes_no() {
-    local prompt="$1"
-    local response
-    
-    # If running non-interactively or auto-install is enabled, return true
-    if [ "${PROOT_AUTO_INSTALL:-0}" = "1" ]; then
-        log_info "Auto-install enabled, proceeding..."
-        return 0
-    fi
-    
-    # Check if we're running in a non-interactive environment
-    if [ ! -t 0 ]; then
-        log_warn "Non-interactive mode detected, skipping prompt."
-        return 1
-    fi
-    
-    while true; do
-        printf "%s [y/n]: " "$prompt"
-        read -r response
-        case "$response" in
-            [Yy]|[Yy][Ee][Ss])
-                return 0
-                ;;
-            [Nn]|[Nn][Oo])
-                return 1
-                ;;
-            *)
-                echo "Please answer yes (y) or no (n)."
-                ;;
-        esac
-    done
-}
-
-setup_proot_debian() {
-    if ! is_termux; then
-        return 1
-    fi
-
-    if ! has_proot_distro; then
-        echo
-        log_warn "proot-distro is not installed."
-        log_info "To build EFI binaries on Termux, you need proot-distro with a Debian environment."
-        echo
-        if ! ask_yes_no "Do you want to install proot-distro now?"; then
-            log_info "Skipping proot-distro installation."
-            return 1
-        fi
-        
-        log_info "Installing proot-distro..."
-        pkg install -y proot-distro || {
-            log_error "Failed to install proot-distro"
-            return 1
-        }
-    fi
-
-    if ! has_proot_debian; then
-        echo
-        log_warn "Debian proot distribution is not installed."
-        log_info "A Debian environment (~500MB download) is needed for EFI build tools."
-        echo
-        if ! ask_yes_no "Do you want to install Debian proot distribution now?"; then
-            log_info "Skipping Debian installation."
-            return 1
-        fi
-        
-        log_info "Installing Debian proot distribution..."
-        proot-distro install debian || {
-            log_error "Failed to install Debian proot"
-            return 1
-        }
-    fi
-
-    if ! proot_debian_has_efi_tools; then
-        echo
-        log_warn "Build tools are not installed in Debian proot."
-        log_info "Installing build-essential, gnu-efi, and binutils (~300MB)."
-        echo
-        if ! ask_yes_no "Do you want to install the build tools now?"; then
-            log_info "Skipping build tools installation."
-            return 1
-        fi
-        
-        log_info "Installing build tools in Debian proot..."
-        proot-distro login debian -- apt-get update || true
-        proot-distro login debian -- apt-get install -y build-essential gnu-efi binutils || {
-            log_error "Failed to install tools in Debian proot"
-            return 1
-        }
-    fi
-
-    log_info "Proot Debian environment ready with EFI build tools"
-    return 0
 }
 
 show_install_hint() {
@@ -350,26 +208,7 @@ show_install_hint() {
             log_info "Set GNUEFI_PREFIX or TOOLCHAIN_PREFIX if your install lives elsewhere."
             ;;
         *)
-            if is_termux || [ "$ARCH" = "aarch64" ]; then
-                log_info "On Termux/aarch64, objcopy lacks EFI target support."
-                if has_proot_distro && has_proot_debian; then
-                    log_info "Detected proot-distro with Debian installed."
-                    log_info "Run with interactive setup: PROOT_SETUP=1 ./build_shutdown.sh"
-                    log_info "Or auto-install mode: PROOT_SETUP=1 PROOT_AUTO_INSTALL=1 ./build_shutdown.sh"
-                else
-                    log_info "Solution: Use proot-distro with Debian environment."
-                    log_info "Interactive setup: PROOT_SETUP=1 ./build_shutdown.sh"
-                    log_info "Auto-install (non-interactive): PROOT_SETUP=1 PROOT_AUTO_INSTALL=1 ./build_shutdown.sh"
-                    log_info ""
-                    log_info "Or manually setup:"
-                    log_info "  pkg install proot-distro"
-                    log_info "  proot-distro install debian"
-                    log_info "  proot-distro login debian"
-                    log_info "  apt-get update && apt-get install build-essential gnu-efi binutils"
-                fi
-            else
-                log_info "Install with: sudo apt-get install build-essential gnu-efi"
-            fi
+            log_info "Install with: sudo apt-get install build-essential gnu-efi"
             ;;
     esac
 }
@@ -478,112 +317,6 @@ resolve_toolchain() {
                 break
             fi
         done
-    fi
-
-    # If the compiler produces COFF/PE objects (e.g. mingw32 GCC on Windows),
-    # try to find an LLVM/clang toolchain that can produce ELF output compatible
-    # with the bundled GNU-EFI libraries.
-    # Detection: mingw32 targets produce COFF; check via gcc -v (Target: *mingw32)
-    local compiler_is_mingw=0
-    if [ -n "$CC" ]; then
-        run_tool "$CC" -v 2>&1 | grep -qi "mingw32" && compiler_is_mingw=1
-    fi
-
-    if [ "$compiler_is_mingw" -eq 1 ]; then
-        local llvm_found=0
-
-        find_llvm_toolchain() {
-            local dir="$1"
-            local cc="${LLVM_CC:-$dir/clang}"
-            local ld="${LLVM_LD:-$dir/ld.lld}"
-            local objcopy="${LLVM_OBJCOPY:-$dir/llvm-objcopy}"
-            local ar="${LLVM_AR:-$dir/llvm-ar}"
-            local ranlib="${LLVM_RANLIB:-$dir/llvm-ranlib}"
-
-            if tool_exists "$cc" && tool_exists "$ld" &&
-               tool_exists "$objcopy" && tool_exists "$ar" &&
-               tool_exists "$ranlib"; then
-                log_info "Switching to LLVM/LLD toolchain at $dir (produces ELF, compatible with GNU-EFI)"
-                CC="$cc"
-                LD="$ld"
-                OBJCOPY="$objcopy"
-                AR="$ar"
-                RANLIB="$ranlib"
-                return 0
-            fi
-            return 1
-        }
-
-        # Save original tools in case LLVM objcopy doesn't support EFI format
-        local orig_objcopy="$OBJCOPY"
-
-        # 1) User override via LLVM_PREFIX
-        if [ "$llvm_found" -eq 0 ] && [ -n "${LLVM_PREFIX:-}" ] && [ -d "$LLVM_PREFIX" ]; then
-            find_llvm_toolchain "$LLVM_PREFIX" && llvm_found=1
-        fi
-
-        # 2) Common installation directories (checked before PATH to avoid MSYS2's own clang/ld.lld
-        #    which may not accept GNU-style ELF linker flags like -T)
-        if [ "$llvm_found" -eq 0 ]; then
-            local common_dirs=()
-            case "$HOST_FAMILY" in
-                windows)
-                    common_dirs=(
-                        "/c/LLVM/bin"
-                        "/c/Program Files/LLVM/bin"
-                        "c:/LLVM/bin"
-                        "c:/Program Files/LLVM/bin"
-                    )
-                    if [ -n "${LOCALAPPDATA:-}" ]; then
-                        local appdata_dir
-                        appdata_dir="$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA")"
-                        common_dirs+=("$appdata_dir/Programs/LLVM/bin")
-                    fi
-                    for msys_root in /c/msys64 /c/msys32; do
-                        [ -d "$msys_root" ] && common_dirs+=("$msys_root/clang64/bin" "$msys_root/clangarm64/bin")
-                    done
-                    for drive_root in /c /d /e; do
-                        [ -d "$drive_root/LLVM/bin" ] && common_dirs+=("$drive_root/LLVM/bin")
-                    done
-                    ;;
-                macos)
-                    common_dirs=(
-                        "/usr/local/opt/llvm/bin"
-                        "/opt/homebrew/opt/llvm/bin"
-                    )
-                    for d in /usr/local/Cellar/llvm/*/bin; do
-                        [ -d "$d" ] && common_dirs+=("$d")
-                    done
-                    ;;
-                linux)
-                    for d in /usr/lib/llvm-*/bin /usr/lib/llvm/*/bin /usr/local/llvm*/bin; do
-                        [ -d "$d" ] && common_dirs+=("$d")
-                    done
-                    ;;
-            esac
-
-            for dir in "${common_dirs[@]}"; do
-                find_llvm_toolchain "$dir" && { llvm_found=1; break; }
-            done
-        fi
-
-        # 3) Fall back to PATH
-        if [ "$llvm_found" -eq 0 ] && command -v clang >/dev/null 2>&1; then
-            local clang_dir
-            clang_dir="$(dirname "$(command -v clang)")"
-            find_llvm_toolchain "$clang_dir" && llvm_found=1
-        fi
-
-        if [ "$llvm_found" -eq 1 ]; then
-            # LLVM objcopy lacks efi-app target support; use original (mingw32) objcopy instead
-            if tool_exists "$orig_objcopy"; then
-                OBJCOPY="$orig_objcopy"
-            fi
-        else
-            log_warn "mingw32 toolchain detected (produces COFF objects, not ELF)"
-            log_warn "GNU-EFI libraries are ELF format. Install LLVM/clang for ELF cross-compilation."
-            log_warn "Set LLVM_PREFIX to the directory containing clang, ld.lld, llvm-objcopy, etc."
-        fi
     fi
 
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
@@ -712,9 +445,6 @@ check_dependencies() {
     resolve_gnuefi_paths
     log_info "Using toolchain: CC=$CC LD=$LD OBJCOPY=$OBJCOPY"
     log_info "Using GNU-EFI: include=$GNUEFI_INCLUDE_DIR lib=$GNUEFI_LIB_DIR"
-    if [ "$USE_PROOT" = "1" ]; then
-        log_info "Build mode: Using proot Debian environment for EFI toolchain"
-    fi
     log_info "All dependencies found!"
 }
 
@@ -726,7 +456,7 @@ setup_flags() {
 
     OPTIMFLAGS=(-Os -fno-strict-aliasing)
     # Add GCC-specific flag only if using GCC (not clang)
-    if run_tool "$CC" --version 2>&1 | grep -q "gcc"; then
+    if "$CC" --version 2>&1 | grep -q "gcc"; then
         OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
     fi
     CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
@@ -760,42 +490,23 @@ setup_flags() {
             FORMAT="-O pei-aarch64-little --subsystem efi-app"
             ;;
     esac
-
+    
     # Detect objcopy type - llvm-objcopy doesn't support --target for EFI
-    if run_tool "$OBJCOPY" --version 2>&1 | grep -iq "llvm-objcopy"; then
-        log_info "Detected llvm-objcopy (will use default binary conversion without EFI target flag)"
+    if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
         FORMAT=""
-    fi
-
-    # When using clang as a cross-compiler, add the target triple.
-    # Skip when building natively (host machine matches target arch).
-    local host_machine
-    host_machine="$(uname -m)"
-    if run_tool "$CC" --version 2>&1 | grep -iq "clang"; then
-        case "$ARCH" in
-            x86_64)  [ "$host_machine" != "x86_64" ] && CFLAGS+=(--target=x86_64-unknown-elf)   ;;
-            ia32)    [ "$host_machine" != "i686" ]   && CFLAGS+=(--target=i686-unknown-elf)      ;;
-            aarch64) [ "$host_machine" != "aarch64" ] && [ "$host_machine" != "arm64" ] && CFLAGS+=(--target=aarch64-unknown-elf)  ;;
-        esac
+        log_info "Detected llvm-objcopy (will use default binary conversion)"
     fi
     
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
+    libgcc_file="$("$CC" --print-libgcc-file-name)"
 
-    # libgcc is only needed for GCC (ELF cross-compilers provide it; clang ELF targets do not)
-    LIBGCC_FILE=""
-    if run_tool "$CC" --version 2>&1 | grep -qi "gcc"; then
-        libgcc_file="$(run_tool "$CC" --print-libgcc-file-name)"
-        if [ -z "$libgcc_file" ]; then
-            log_error "Unable to locate libgcc via $CC"
-            exit 1
-        fi
-        if [ "$USE_PROOT" != "1" ] && [ ! -f "$libgcc_file" ]; then
-            log_error "Unable to locate libgcc file: $libgcc_file"
-            exit 1
-        fi
-        LIBGCC_FILE="$libgcc_file"
+    if [ ! -f "$libgcc_file" ]; then
+        log_error "Unable to locate libgcc via $CC"
+        exit 1
     fi
+
+    LIBGCC_FILE="$libgcc_file"
     
     log_info "Compilation flags configured"
 }
@@ -821,7 +532,7 @@ build_binary() {
     
     # Compile
     log_info "Compiling $source..."
-    run_tool "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
+    "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
     if [ ! -f "$object" ]; then
         log_error "Compilation failed"
         exit 1
@@ -835,53 +546,36 @@ build_binary() {
     local z_flags=(-z noexecstack -znocombreloc)
     
     # LLD (LLVM linker) needs -z norelro to avoid relro section issues
-    if run_tool "$LD" --version 2>&1 | grep -q "LLD"; then
+    if "$LD" --version 2>&1 | grep -q "LLD"; then
         z_flags=(-z norelro -z noexecstack -znocombreloc)
     fi
     
-    local ld_libs=("$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A")
-    if [ -n "$LIBGCC_FILE" ]; then
-        ld_libs+=("$LIBGCC_FILE")
-    fi
-    run_tool "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
-        "${ld_libs[@]}" 2>&1 | grep -v "warning:" || true
+    "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
+        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
         exit 1
     fi
     
-    # Convert to EFI binary using objcopy
+    # Convert to EFI binary
     log_info "Converting to EFI binary: $binary..."
-    local objcopy_output=""
-    local objcopy_rc=0
-
-    set +e
+    
+    # Different section handling for llvm-objcopy vs GNU objcopy
     if [ -z "$FORMAT" ]; then
         # llvm-objcopy: include .dynstr since it's referenced by .dynamic
-        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
-                         -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                         -j .reloc --strip-unneeded "$shared" "$binary" 2>&1)
+        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
+                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                   -j .reloc --strip-unneeded "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     else
         # GNU objcopy with EFI target format
-        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-                         -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-                         -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1)
+        "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
+                   -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
+                   -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1 | grep -v "warning:" || true
     fi
-    objcopy_rc=$?
-    set -e
-
-    printf '%s\n' "$objcopy_output" | grep -v "warning:" || true
-
-    if [ "$objcopy_rc" -ne 0 ] || [ ! -f "$binary" ]; then
+    
+    if [ ! -f "$binary" ]; then
         log_error "Binary conversion failed"
-        show_objcopy_hint "$FORMAT"
-        exit 1
-    fi
-
-    if ! head -c 2 "$binary" | grep -q "^MZ"; then
-        log_error "Binary conversion produced a non-EFI output (missing MZ header). Check the selected objcopy tool."
-        show_objcopy_hint "$FORMAT"
         exit 1
     fi
     
@@ -890,10 +584,11 @@ build_binary() {
         log_info "Adding SBAT section..."
         if [ -z "$FORMAT" ]; then
             # llvm-objcopy doesn't support --adjust-section-vma on non-relocatable files
-            run_tool "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
+            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" "$binary" 2>/dev/null || \
                 log_warn "SBAT section addition failed with llvm-objcopy (this is usually safe to ignore)"
         else
-            run_tool "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
+            # GNU objcopy
+            "$OBJCOPY" --add-section .sbat="$SBAT_CSV" \
                        --adjust-section-vma .sbat+10000000 "$binary"
         fi
     else

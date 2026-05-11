@@ -848,17 +848,13 @@ build_binary() {
         exit 1
     fi
     
-    # Convert to EFI binary using correct objcopy command for aarch64
+    # Convert to EFI binary using objcopy
     log_info "Converting to EFI binary: $binary..."
     local objcopy_output=""
     local objcopy_rc=0
 
     set +e
-    if [ "$ARCH" = "aarch64" ]; then
-        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
-            -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
-            -j .reloc --strip-unneeded -O pei-aarch64-little --subsystem efi-app "$shared" "$binary" 2>&1)
-    elif [ -z "$FORMAT" ]; then
+    if [ -z "$FORMAT" ]; then
         # llvm-objcopy: include .dynstr since it's referenced by .dynamic
         objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
                          -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \

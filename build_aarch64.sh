@@ -262,7 +262,14 @@ show_install_hint() {
             log_info "Set GNUEFI_PREFIX or TOOLCHAIN_PREFIX if your install lives elsewhere."
             ;;
         *)
-            log_info "Install with: sudo apt-get install build-essential gnu-efi"
+            if [ "$ARCH" = "aarch64" ]; then
+                log_info "Install aarch64 cross-compilation toolchain:"
+                log_info "  sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+                log_info ""
+                log_info "Also install: sudo apt-get install gnu-efi  (or use bundled GNU-EFI)"
+            else
+                log_info "Install with: sudo apt-get install build-essential gnu-efi"
+            fi
             ;;
     esac
 }
@@ -620,6 +627,15 @@ build_binary() {
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
+        echo
+        log_info "If you are cross-compiling for aarch64 from x86_64, make sure the"
+        log_info "aarch64 cross-compilation toolchain is installed:"
+        log_info "  sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+        log_info ""
+        log_info "Also ensure aarch64 GNU-EFI libraries are available. If bundled"
+        log_info "gnuefi/ is present, the script should find them automatically."
+        log_info "Otherwise install: sudo apt-get install gnu-efi"
+        echo
         exit 1
     fi
     

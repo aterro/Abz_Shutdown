@@ -854,6 +854,15 @@ build_binary() {
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
+        echo
+        if [ "$ARCH" = "aarch64" ] && [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
+            log_info "Cross-compiling for aarch64 from $(uname -m) requires:"
+            log_info "  sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+            log_info ""
+            log_info "Also ensure aarch64 GNU-EFI libraries are available (bundled or system)."
+            echo
+        fi
+        show_install_hint
         exit 1
     fi
     

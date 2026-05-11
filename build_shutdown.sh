@@ -17,8 +17,8 @@ HOST_OS="$(uname -s)"
 HOST_FAMILY="linux"
 USE_PROOT=0
 
-# If the host is aarch64, delegate to build_aarch64.sh
-if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
+# If building for aarch64, delegate to build_aarch64.sh
+if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ] || [ "${1:-auto}" = "aarch64" ] || [ "${1:-auto}" = "arm64" ]; then
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exec "$script_dir/build_aarch64.sh" "$@"
 fi

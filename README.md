@@ -44,17 +44,21 @@ Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platfor
 
 ```bash
 cd Abz_Shutdown
-./build_shutdown.sh
+./build_shutdown.sh          # builds for native architecture
+./build_shutdown.sh aarch64  # cross-compile for ARM64
+./build_shutdown.sh ia32     # cross-compile for 32-bit x86
 ```
 
 The script automatically:
-- Detects your architecture (x86_64, ia32, or aarch64)
+- Detects your architecture (x86_64, ia32, or aarch64) — or uses the explicit target you pass
 - Uses bundled GNU-EFI files (if available for your arch)
 - Uses a repo-local `gnu-efi/` or `gnuefi/` checkout when present
 - Falls back to system gnu-efi installation
 - Verifies that `objcopy` can emit a real EFI binary for the selected target
 - Compiles and links the binary
 - Outputs: `ABZ_Shutdown_<arch>.efi`
+
+**Cross-compiling for aarch64** from an x86_64 host is fully supported. The script defaults to `TOOLCHAIN_PREFIX=aarch64-linux-gnu-` and will prompt to install `gcc-aarch64-linux-gnu` + `binutils-aarch64-linux-gnu` if the cross-toolchain is missing.
 
 ### Platform-Specific
 
@@ -93,6 +97,11 @@ Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md).
 Install on Ubuntu/Debian:
 ```bash
 sudo apt-get install build-essential gnu-efi
+```
+
+For aarch64 cross-compilation, also install:
+```bash
+sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 ```
 
 **Requirements on macOS:**
@@ -162,10 +171,12 @@ The `build_shutdown.sh` script provides:
 - ✅ Clean build option (`CLEAN_BUILD=1 ./build_shutdown.sh`)
 - ✅ Custom SBAT CSV support
 - ✅ No external makefile dependencies
+- ✅ Cross-compilation support (all three architectures from any host)
+- ✅ Auto-prompt for installing missing aarch64 cross-toolchain packages
 
 **Usage:**
 ```bash
-# Standard build
+# Standard build (native architecture)
 ./build_shutdown.sh
 
 # Windows entry point
@@ -173,6 +184,8 @@ build_shutdown.bat
 
 # Force architecture (optional)
 ./build_shutdown.sh x86_64
+./build_shutdown.sh ia32
+./build_shutdown.sh aarch64
 
 # Use custom SBAT CSV
 SHUTDOWN_SBAT_CSV=abz-shutdown.csv ./build_shutdown.sh
@@ -180,6 +193,10 @@ SHUTDOWN_SBAT_CSV=abz-shutdown.csv ./build_shutdown.sh
 # Clean build
 CLEAN_BUILD=1 ./build_shutdown.sh
 ```
+
+**Cross-compilation notes:**
+- **aarch64** from x86_64: install `gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu`, or let the script prompt you automatically.
+- **ia32** on x86_64: native `gcc` with `-m32` is used automatically when the target and host are both x86.
 
 ## Usage
 

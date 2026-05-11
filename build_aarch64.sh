@@ -192,6 +192,60 @@ Environment variables:
 EOF
 }
 
+ask_yes_no() {
+    local prompt="$1"
+    local response
+
+    if [ ! -t 0 ]; then
+        log_warn "Non-interactive mode detected, skipping prompt."
+        return 1
+    fi
+
+    while true; do
+        printf "%s [y/n]: " "$prompt"
+        read -r response
+        case "$response" in
+            [Yy]|[Yy][Ee][Ss])
+                return 0
+                ;;
+            [Nn]|[Nn][Oo])
+                return 1
+                ;;
+            *)
+                echo "Please answer yes (y) or no (n)."
+                ;;
+        esac
+    done
+}
+
+prompt_install_cross_toolchain() {
+    if ! command -v apt-get >/dev/null 2>&1; then
+        return 1
+    fi
+
+    echo
+    log_warn "aarch64 cross-compilation toolchain not found."
+    log_info "The following packages are needed:"
+    log_info "  gcc-aarch64-linux-gnu    (cross-compiler)"
+    log_info "  binutils-aarch64-linux-gnu (cross-assembler, linker, objcopy, etc.)"
+    echo
+
+    if ask_yes_no "Install these packages now (requires sudo)?"; then
+        log_info "Installing aarch64 cross-compilation toolchain..."
+        sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu || {
+            log_error "Installation failed. Try running manually:"
+            log_error "  sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+            return 1
+        }
+        log_info "Packages installed successfully."
+        return 0
+    fi
+
+    log_info "Skipping installation. You can install manually:"
+    log_info "  sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+    return 1
+}
+
 show_install_hint() {
     case "$HOST_FAMILY" in
         macos)
@@ -323,6 +377,17 @@ resolve_toolchain() {
     for tool in "${required_tools[@]}"; do
         if [ -z "$tool" ] || ! tool_exists "$tool"; then
             log_error "Required tool not found: ${tool:-<unset>}"
+            echo
+            if [ "$ARCH" = "aarch64" ] && prompt_install_cross_toolchain; then
+                # Retry: clear CC/LD/etc so the prefix search re-runs
+                CC=""
+                LD=""
+                OBJCOPY=""
+                AR=""
+                RANLIB=""
+                resolve_toolchain
+                return
+            fi
             show_install_hint
             exit 1
         fi
@@ -613,6 +678,17 @@ main() {
     log_info "Host OS detected: $HOST_OS"
 
     detect_arch
+
+    # Default to aarch64-linux-gnu- cross-compiler prefix when not on aarch64
+    if [ "$ARCH" = "aarch64" ] && \
+       [ -z "${TOOLCHAIN_PREFIX:-}" ] && \
+       [ -z "${CC:-}" ] && [ -z "${LD:-}" ] && [ -z "${OBJCOPY:-}" ] && \
+       [ -z "${AR:-}" ] && [ -z "${RANLIB:-}" ] && \
+       [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
+        TOOLCHAIN_PREFIX="aarch64-linux-gnu-"
+        log_info "Defaulting to TOOLCHAIN_PREFIX=aarch64-linux-gnu- for cross-compilation"
+    fi
+
     check_dependencies
     setup_flags
     build_binary

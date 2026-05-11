@@ -531,7 +531,7 @@ setup_flags() {
     if "$CC" --version 2>&1 | grep -q "gcc"; then
         OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
     fi
-    CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
+    CFLAGS=("${OPTIMFLAGS[@]}" -ffreestanding -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
     
     # GNU-EFI specific flags
     GNUEFI_CFLAGS=(-fpic "-I$GNUEFI_INCLUDE_DIR" "-I$GNUEFI_INCLUDE_DIR/$GNUEFI_ARCH" "-I$GNUEFI_INCLUDE_DIR/protocol")
@@ -543,7 +543,9 @@ setup_flags() {
         fi
 
         if [ -n "$sdk_root" ] && [ -d "$sdk_root/usr/include" ]; then
-            GNUEFI_CFLAGS+=("-isystem" "$sdk_root/usr/include")
+            if "$CC" --version 2>&1 | grep -qi "apple clang"; then
+                GNUEFI_CFLAGS+=("-isystem" "$sdk_root/usr/include")
+            fi
         fi
     fi
     

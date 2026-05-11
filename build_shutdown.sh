@@ -136,6 +136,46 @@ set_gnuefi_paths() {
     GNUEFI_LIBGNUEFI_A="${6:-$2/libgnuefi.a}"
 }
 
+resolve_objcopy_format() {
+    local required_target=""
+    local bfd_target=""
+
+    [ -z "$FORMAT" ] && return 0
+
+    case "$ARCH" in
+        ia32)    bfd_target="pei-i386" ;;
+        x86_64)  bfd_target="pei-x86-64" ;;
+        aarch64) bfd_target="pei-aarch64-little" ;;
+        *)       return 0 ;;
+    esac
+
+    if run_tool "$OBJCOPY" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
+        return 0
+    fi
+
+    log_warn "$OBJCOPY lacks $bfd_target support, searching for alternative objcopy..."
+    local alt
+    for alt in x86_64-elf-objcopy aarch64-elf-objcopy; do
+        if tool_exists "$alt" && "$alt" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
+            OBJCOPY="$alt"
+            log_info "Using alternative objcopy: $OBJCOPY"
+            return 0
+        fi
+    done
+
+    if command -v brew >/dev/null 2>&1; then
+        local brew_gobjcopy="$(brew --prefix)/opt/binutils/bin/gobjcopy"
+        if [ -x "$brew_gobjcopy" ] && "$brew_gobjcopy" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
+            OBJCOPY="$brew_gobjcopy"
+            log_info "Using alternative objcopy: $OBJCOPY"
+            return 0
+        fi
+    fi
+
+    log_warn "No objcopy with $bfd_target support found. Will attempt section-based conversion."
+    FORMAT=""
+}
+
 try_bundled_gnuefi_root() {
     local root="${1:-}"
     local bundled_inc="$root/inc"
@@ -735,7 +775,7 @@ setup_flags() {
     if run_tool "$CC" --version 2>&1 | grep -q "gcc"; then
         OPTIMFLAGS+=(-fno-tree-loop-distribute-patterns)
     fi
-    CFLAGS=("${OPTIMFLAGS[@]}" -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
+    CFLAGS=("${OPTIMFLAGS[@]}" -ffreestanding -fno-stack-protector -fshort-wchar -Wall -Wno-unused-function -DMDEPKG_NDEBUG)
     
     # GNU-EFI specific flags
     GNUEFI_CFLAGS=(-fpic "-I$GNUEFI_INCLUDE_DIR" "-I$GNUEFI_INCLUDE_DIR/$GNUEFI_ARCH" "-I$GNUEFI_INCLUDE_DIR/protocol")
@@ -747,7 +787,9 @@ setup_flags() {
         fi
 
         if [ -n "$sdk_root" ] && [ -d "$sdk_root/usr/include" ]; then
-            GNUEFI_CFLAGS+=("-isystem" "$sdk_root/usr/include")
+            if run_tool "$CC" --version 2>&1 | grep -qi "apple clang"; then
+                GNUEFI_CFLAGS+=("-isystem" "$sdk_root/usr/include")
+            fi
         fi
     fi
     
@@ -772,6 +814,9 @@ setup_flags() {
         log_info "Detected llvm-objcopy (will use default binary conversion without EFI target flag)"
         FORMAT=""
     fi
+
+    # Verify objcopy supports the required EFI target format
+    resolve_objcopy_format
 
     # When using clang as a cross-compiler, add the target triple.
     # Skip when building natively (host machine matches target arch).

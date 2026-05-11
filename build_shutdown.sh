@@ -861,7 +861,7 @@ build_binary() {
                          -j .reloc --strip-unneeded "$shared" "$binary" 2>&1)
     else
         # GNU objcopy with EFI target format
-        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \
+        objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rodata \
                          -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* \
                          -j .reloc --strip-unneeded $FORMAT "$shared" "$binary" 2>&1)
     fi

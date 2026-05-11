@@ -802,7 +802,6 @@ build_binary() {
     local source="shutdown.c"
     local object="$BUILD_DIR/shutdown.o"
     local shared="$BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.so"
-    local elf="$BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.elf"
     local binary="$BUILD_DIR/${BINARY_NAME}_${ARCH_SHORT}.efi"
     
     if [ ! -f "$source" ]; then
@@ -849,9 +848,6 @@ build_binary() {
         exit 1
     fi
     
-    # Rename .so to .elf for clarity (matches working script)
-    mv "$shared" "$elf"
-    
     # Convert to EFI binary using correct objcopy command for aarch64
     log_info "Converting to EFI binary: $binary..."
     local objcopy_output=""
@@ -859,7 +855,7 @@ build_binary() {
 
     set +e
     if [ "$ARCH" = "aarch64" ]; then
-        objcopy_output=$(run_tool "$OBJCOPY" -O pei-aarch64-little --subsystem efi-app "$elf" "$binary" 2>&1)
+        objcopy_output=$(run_tool "$OBJCOPY" -O pei-aarch64-little --subsystem efi-app "$shared" "$binary" 2>&1)
     elif [ -z "$FORMAT" ]; then
         # llvm-objcopy: include .dynstr since it's referenced by .dynamic
         objcopy_output=$(run_tool "$OBJCOPY" -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .dynstr -j .rodata \

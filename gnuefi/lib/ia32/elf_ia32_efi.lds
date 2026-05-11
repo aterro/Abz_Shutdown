@@ -9,7 +9,6 @@ SECTIONS
   .hash : { *(.hash) }
   .gnu.hash : { *(.gnu.hash) }
   .eh_frame : { *(.eh_frame) }
-  .eh_frame_hdr : { *(.eh_frame_hdr) }
   .gcc_except_table : { *(.gcc_except_table*) }
   . = ALIGN(4096);
   .text :
@@ -69,7 +68,6 @@ SECTIONS
   .note.gnu.build-id : { *(.note.gnu.build-id) }
 
   . = ALIGN(4096);
-  _DYNAMIC = .;
   .dynamic  : { *(.dynamic) }
   . = ALIGN(4096);
   .rel :

@@ -761,14 +761,14 @@ setup_flags() {
             ;;
     esac
 
-    # llvm-objcopy lacks efi-app target; skip -O flag and rely on default behavior
-    if run_tool "$OBJCOPY" --version 2>/dev/null | grep -iq "llvm-objcopy"; then
+    # Detect objcopy type - llvm-objcopy doesn't support --target for EFI
+    if run_tool "$OBJCOPY" --version 2>&1 | grep -iq "llvm-objcopy"; then
         log_info "Detected llvm-objcopy (will use default binary conversion without EFI target flag)"
         FORMAT=""
     fi
 
     # When using clang as an ELF cross-compiler, add the target triple
-    if run_tool "$CC" --version 2>/dev/null | grep -iq "clang"; then
+    if run_tool "$CC" --version 2>&1 | grep -iq "clang"; then
         case "$ARCH" in
             x86_64)  CFLAGS+=(--target=x86_64-unknown-elf)  ;;
             ia32)    CFLAGS+=(--target=i686-unknown-elf)     ;;
@@ -781,7 +781,7 @@ setup_flags() {
 
     # libgcc is only needed for GCC (ELF cross-compilers provide it; clang ELF targets do not)
     LIBGCC_FILE=""
-    if run_tool "$CC" --version 2>/dev/null | grep -qi "gcc"; then
+    if run_tool "$CC" --version 2>&1 | grep -qi "gcc"; then
         libgcc_file="$(run_tool "$CC" --print-libgcc-file-name)"
         if [ -z "$libgcc_file" ]; then
             log_error "Unable to locate libgcc via $CC"
@@ -876,15 +876,10 @@ build_binary() {
         exit 1
     fi
 
-    # On Termux/aarch64, skip strict MZ header check due to objcopy limitations
-    if [ "$ARCH" = "aarch64" ] && is_termux; then
-        : # Do not check MZ header, just ensure file exists
-    else
-        if ! head -c 2 "$binary" | grep -q "^MZ"; then
-            log_error "Binary conversion produced a non-EFI output. Check the selected objcopy tool."
-            show_objcopy_hint "$FORMAT"
-            exit 1
-        fi
+    if ! head -c 2 "$binary" | grep -q "^MZ"; then
+        log_error "Binary conversion produced a non-EFI output (missing MZ header). Check the selected objcopy tool."
+        show_objcopy_hint "$FORMAT"
+        exit 1
     fi
     
     # Add SBAT section if file exists

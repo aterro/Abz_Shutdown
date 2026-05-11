@@ -779,9 +779,9 @@ setup_flags() {
     host_machine="$(uname -m)"
     if run_tool "$CC" --version 2>&1 | grep -iq "clang"; then
         case "$ARCH" in
-            x86_64)  [ "$host_machine" != "x86_64" ] && CFLAGS+=(--target=x86_64-unknown-elf)   ;;
-            ia32)    [ "$host_machine" != "i686" ]   && CFLAGS+=(--target=i686-unknown-elf)      ;;
-            aarch64) [ "$host_machine" != "aarch64" ] && [ "$host_machine" != "arm64" ] && CFLAGS+=(--target=aarch64-unknown-elf)  ;;
+            x86_64)  { [ "$host_machine" != "x86_64" ] || [ "$HOST_FAMILY" = "windows" ]; } && CFLAGS+=(--target=x86_64-unknown-elf)   ;;
+            ia32)    { [ "$host_machine" != "i686" ]   || [ "$HOST_FAMILY" = "windows" ]; } && CFLAGS+=(--target=i686-unknown-elf)      ;;
+            aarch64) { { [ "$host_machine" != "aarch64" ] && [ "$host_machine" != "arm64" ]; } || [ "$HOST_FAMILY" = "windows" ]; } && CFLAGS+=(--target=aarch64-unknown-elf)  ;;
         esac
     fi
     

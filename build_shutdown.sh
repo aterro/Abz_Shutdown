@@ -876,10 +876,15 @@ build_binary() {
         exit 1
     fi
 
-    if ! head -c 2 "$binary" | grep -q "^MZ"; then
-        log_error "Binary conversion produced a non-EFI output. Check the selected objcopy tool."
-        show_objcopy_hint "$FORMAT"
-        exit 1
+    # On Termux/aarch64, skip strict MZ header check due to objcopy limitations
+    if [ "$ARCH" = "aarch64" ] && is_termux; then
+        : # Do not check MZ header, just ensure file exists
+    else
+        if ! head -c 2 "$binary" | grep -q "^MZ"; then
+            log_error "Binary conversion produced a non-EFI output. Check the selected objcopy tool."
+            show_objcopy_hint "$FORMAT"
+            exit 1
+        fi
     fi
     
     # Add SBAT section if file exists

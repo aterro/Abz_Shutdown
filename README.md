@@ -12,7 +12,7 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 ```bash
 cd Abz_Shutdown
 ./build_shutdown.sh
-./Fix-efi-on-termux.sh
+./fix-efi-on-termux.sh
 ```
 Bundled GNU-EFI files are included, but Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
 

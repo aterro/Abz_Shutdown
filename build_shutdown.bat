@@ -29,7 +29,7 @@ exit /b %LAST_EXIT_CODE%
 :try_bash
 echo [INFO] Trying %~2...
 pushd "%SCRIPT_DIR%"
-"%~1" "./build_shutdown.sh" %BUILD_ARGS%
+"%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 popd
 if "%LAST_EXIT_CODE%"=="0" exit /b 0

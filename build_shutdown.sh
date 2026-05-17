@@ -471,7 +471,7 @@ resolve_toolchain() {
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     prefixes+=(
                         "/mingw64/bin/" "/ucrt64/bin/" "/clang64/bin/" "/usr/bin/"
-                        "/c/msys64/mingw64/bin/" "/c/msys64/ucrt64/bin/" "/c/msys64/clang64/bin/" "/c/msys64/usr/bin/"
+                        "/c/msys64/mingw64/bin/" "/c/msys64/ucrt64/bin/" "/c/msys64/clang64/bin/" "/c/msys64/usr/bin/" "/msys64/mingw64/bin/" "/msys64/ucrt64/bin/" "/msys64/clang64/bin/" "/msys64/usr/bin/" "C:/msys64/mingw64/bin/" "C:/msys64/ucrt64/bin/" "C:/msys64/clang64/bin/" "C:/msys64/usr/bin/" "/c/msys32/mingw64/bin/" "/msys32/mingw64/bin/" "C:/msys32/mingw64/bin/"
                         "" "x86_64-linux-gnu-" "x86_64-elf-"
                     )
                 else
@@ -585,7 +585,7 @@ resolve_toolchain() {
                         appdata_dir="$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA")"
                         common_dirs+=("$appdata_dir/Programs/LLVM/bin")
                     fi
-                    for msys_root in /c/msys64 /c/msys32; do
+                    for msys_root in /c/msys64 /c/msys32 /msys64 /msys32 C:/msys64 C:/msys32; do
                         [ -d "$msys_root" ] && common_dirs+=("$msys_root/clang64/bin" "$msys_root/clangarm64/bin")
                     done
                     for drive_root in /c /d /e; do
@@ -690,7 +690,7 @@ resolve_gnuefi_paths() {
             [ -n "${MSYSTEM_PREFIX:-}" ] && prefixes+=("$MSYSTEM_PREFIX")
             [ -n "${MINGW_PREFIX:-}" ] && prefixes+=("$MINGW_PREFIX")
             prefixes+=("/usr" "/mingw64" "/ucrt64" "/clang64" "/clangarm64" "/mingw32")
-            prefixes+=("/c/msys64/usr" "/c/msys64/mingw64" "/c/msys64/ucrt64" "/c/msys64/clang64" "/c/msys64/clangarm64" "/c/msys64/mingw32")
+            prefixes+=("/c/msys64/usr" "/c/msys64/mingw64" "/c/msys64/ucrt64" "/c/msys64/clang64" "/c/msys64/clangarm64" "/c/msys64/mingw32" "/msys64/usr" "/msys64/mingw64" "/msys64/ucrt64" "/msys64/clang64" "/msys64/clangarm64" "/msys64/mingw32" "C:/msys64/usr" "C:/msys64/mingw64" "C:/msys64/ucrt64" "C:/msys64/clang64" "C:/msys64/clangarm64" "C:/msys64/mingw32" "/c/msys32/usr" "/c/msys32/mingw32" "/msys32/usr" "/msys32/mingw32" "C:/msys32/usr" "C:/msys32/mingw32")
         fi
 
         if [ "$HOST_FAMILY" = "macos" ] && command -v brew >/dev/null 2>&1; then

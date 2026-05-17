@@ -45,26 +45,41 @@ if not "%MSYS_ROOT%"=="" (
     set "TOOLCHAIN_PREFIX_WIN="
 )
 
+rem Normalize SCRIPT_DIR to a POSIX-style path (simple transformation C:\path -> /c/path)
+set "SD=%SCRIPT_DIR%"
+if "%SD:~-1%"=="\" set "SD=%SD:~0,-1%"
+set "SCRIPT_UNIX=%SD::=%"
+set "SCRIPT_UNIX=%SCRIPT_UNIX:\=/ %"
+set "SCRIPT_UNIX=/%SCRIPT_UNIX%"
+
+rem Normalize TOOLCHAIN_PREFIX if present
+if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
+    set "TP=%TOOLCHAIN_PREFIX_WIN%"
+    if "%TP:~-1%"=="\" set "TP=%TP:~0,-1%"
+    set "TOOLCHAIN_PREFIX_UNIX=%TP::=%"
+    set "TOOLCHAIN_PREFIX_UNIX=%TOOLCHAIN_PREFIX_UNIX:\=/%"
+    set "TOOLCHAIN_PREFIX_UNIX=/%TOOLCHAIN_PREFIX_UNIX%"
+) else (
+    set "TOOLCHAIN_PREFIX_UNIX="
+)
+
 rem Create a temporary bash wrapper script to avoid cmd quoting issues
 set "TMP_SH=%TEMP%\abz_build_wrapper.sh"
 if exist "%TMP_SH%" del /f /q "%TMP_SH%" >nul 2>nul
-(
-    echo #!/usr/bin/env bash
-    echo set -o pipefail
-    echo export PATH=/usr/bin:/bin:\$PATH
-) > "%TMP_SH%"
-if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
-    >> "%TMP_SH%" echo TOOLCHAIN_PREFIX_UNIX=$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')
-    >> "%TMP_SH%" echo export TOOLCHAIN_PREFIX=\"$TOOLCHAIN_PREFIX_UNIX\"
+>> "%TMP_SH%" echo #!/usr/bin/env bash
+>> "%TMP_SH%" echo set -o pipefail
+>> "%TMP_SH%" echo export PATH=/usr/bin:/bin:\$PATH
+if not "%TOOLCHAIN_PREFIX_UNIX%"=="" (
+    >> "%TMP_SH%" echo export TOOLCHAIN_PREFIX=\"%TOOLCHAIN_PREFIX_UNIX%\"
 )
->> "%TMP_SH%" echo cd \"$(cygpath -u '%SCRIPT_DIR%')\"
+>> "%TMP_SH%" echo cd "%SCRIPT_UNIX%"
 >> "%TMP_SH%" echo tr -d '\r' ^< ./build_shutdown.sh ^| bash -s -- %BUILD_ARGS%
 
 :use_bash_from_path
 if exist "%TMP_SH%" (
     bash "%TMP_SH%"
 ) else (
-    bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+    bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"%SCRIPT_UNIX%\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 )
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash

@@ -25,11 +25,16 @@ where wsl.exe >nul 2>nul && call :try_wsl && exit /b 0
 echo [ERROR] Could not find a usable Windows Bash or WSL environment.
 echo Install Git for Windows, MSYS2, or WSL with GNU-EFI and GNU binutils, then rerun this script.
 exit /b %LAST_EXIT_CODE%
-
 :try_bash
 echo [INFO] Trying %~2...
 pushd "%SCRIPT_DIR%"
-"%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+set "BASH_PATH=%~1"
+rem If PATH-style path (starts with /), call bash from PATH so Windows doesn't try to interpret it as a file path.
+if "%BASH_PATH:~0,1%"=="/" (
+    bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+) else (
+    "%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+)
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 popd
 if "%LAST_EXIT_CODE%"=="0" exit /b 0

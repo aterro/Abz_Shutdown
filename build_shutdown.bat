@@ -45,9 +45,24 @@ if not "%MSYS_ROOT%"=="" (
     set "TOOLCHAIN_PREFIX_WIN="
 )
 
-:use_bash_from_path
+rem Create a temporary bash wrapper script to avoid cmd quoting issues
+set "TMP_SH=%TEMP%\abz_build_wrapper.sh"
+if exist "%TMP_SH%" del /f /q "%TMP_SH%" >nul 2>nul
+(
+    echo #!/usr/bin/env bash
+    echo set -o pipefail
+    echo export PATH=/usr/bin:/bin:\$PATH
+) > "%TMP_SH%"
 if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
-    bash -lc "set -o pipefail; export TOOLCHAIN_PREFIX=\"$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')\"; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+    >> "%TMP_SH%" echo TOOLCHAIN_PREFIX_UNIX=$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')
+    >> "%TMP_SH%" echo export TOOLCHAIN_PREFIX=\"$TOOLCHAIN_PREFIX_UNIX\"
+)
+>> "%TMP_SH%" echo cd \"$(cygpath -u '%SCRIPT_DIR%')\"
+>> "%TMP_SH%" echo tr -d '\r' ^< ./build_shutdown.sh ^| bash -s -- %BUILD_ARGS%
+
+:use_bash_from_path
+if exist "%TMP_SH%" (
+    bash "%TMP_SH%"
 ) else (
     bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 )
@@ -55,8 +70,8 @@ set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
-    "%~1" -lc "set -o pipefail; export TOOLCHAIN_PREFIX=\"$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')\"; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+if exist "%TMP_SH%" (
+    "%~1" "%TMP_SH%"
 ) else (
     "%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 )

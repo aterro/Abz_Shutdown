@@ -11,8 +11,13 @@ for %%I in (bash.exe) do set "PATH_BASH=%%~$PATH:I"
 
 if exist "%ProgramFiles%\Git\usr\bin\bash.exe" call :try_bash "%ProgramFiles%\Git\usr\bin\bash.exe" "Git Bash (usr\bin)" && exit /b 0
 if exist "%ProgramFiles%\Git\bin\bash.exe" call :try_bash "%ProgramFiles%\Git\bin\bash.exe" "Git Bash (bin)" && exit /b 0
-if exist "%SystemDrive%\msys64\usr\bin\bash.exe" call :try_bash "%SystemDrive%\msys64\usr\bin\bash.exe" "MSYS2" && exit /b 0
+if exist "%SystemDrive%\msys64\usr\bin\bash.exe" call :try_bash "%SystemDrive%\msys64\usr\bin\bash.exe" "MSYS2 (msys64)" && exit /b 0
+if exist "%SystemDrive%\msys32\usr\bin\bash.exe" call :try_bash "%SystemDrive%\msys32\usr\bin\bash.exe" "MSYS2 (msys32)" && exit /b 0
+if exist "C:\msys64\usr\bin\bash.exe" call :try_bash "C:\msys64\usr\bin\bash.exe" "MSYS2 (C:\msys64)" && exit /b 0
+if exist "C:\msys32\usr\bin\bash.exe" call :try_bash "C:\msys32\usr\bin\bash.exe" "MSYS2 (C:\msys32)" && exit /b 0
 if exist "%ProgramFiles%\MSYS2\usr\bin\bash.exe" call :try_bash "%ProgramFiles%\MSYS2\usr\bin\bash.exe" "MSYS2 (Program Files)" && exit /b 0
+if exist "%SystemDrive%\msys64\mingw64\bin\bash.exe" call :try_bash "%SystemDrive%\msys64\mingw64\bin\bash.exe" "MSYS2 Mingw64 bash" && exit /b 0
+if exist "%SystemDrive%\msys32\mingw32\bin\bash.exe" call :try_bash "%SystemDrive%\msys32\mingw32\bin\bash.exe" "MSYS2 Mingw32 bash" && exit /b 0
 if defined PATH_BASH call :try_bash "%PATH_BASH%" "bash.exe from PATH" && exit /b 0
 
 where wsl.exe >nul 2>nul && call :try_wsl && exit /b 0

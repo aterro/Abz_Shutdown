@@ -29,17 +29,37 @@ exit /b %LAST_EXIT_CODE%
 echo [INFO] Trying %~2...
 pushd "%SCRIPT_DIR%"
 set "BASH_PATH=%~1"
-rem If PATH-style path (starts with /), call bash from PATH so Windows doesn't try to interpret it as a file path.
+rem Detect MSYS root (msys32/msys64) from the bash path and set TOOLCHAIN_PREFIX to the mingw bin if found
+set "MSYS_ROOT="
+set "MINGW_SUB="
+echo %BASH_PATH% | findstr /I "msys32" >nul && (set "MSYS_ROOT=%SystemDrive%\msys32" & set "MINGW_SUB=mingw32")
+echo %BASH_PATH% | findstr /I "msys64" >nul && (set "MSYS_ROOT=%SystemDrive%\msys64" & set "MINGW_SUB=mingw64")
+echo %BASH_PATH% | findstr /I "C:\\msys32" >nul && (set "MSYS_ROOT=C:\msys32" & set "MINGW_SUB=mingw32")
+echo %BASH_PATH% | findstr /I "C:\\msys64" >nul && (set "MSYS_ROOT=C:\msys64" & set "MINGW_SUB=mingw64")
+rem If a msys root was found, set TOOLCHAIN_PREFIX inside the invoked bash so build script can prefer the mingw toolchain
 if "%BASH_PATH:~0,1%"=="/" goto :use_bash_from_path
-goto :use_bash_file
+
+if not "%MSYS_ROOT%"=="" (
+    set "TOOLCHAIN_PREFIX_WIN=%MSYS_ROOT%\%MINGW_SUB%"
+) else (
+    set "TOOLCHAIN_PREFIX_WIN="
+)
 
 :use_bash_from_path
-bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
+    bash -lc "set -o pipefail; export TOOLCHAIN_PREFIX=\"$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')\"; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+) else (
+    bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+)
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-"%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
+    "%~1" -lc "set -o pipefail; export TOOLCHAIN_PREFIX=\"$(cygpath -u '%TOOLCHAIN_PREFIX_WIN%')\"; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+) else (
+    "%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+)
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 
 :after_try_bash

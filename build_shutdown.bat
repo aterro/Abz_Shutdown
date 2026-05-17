@@ -29,67 +29,17 @@ exit /b %LAST_EXIT_CODE%
 echo [INFO] Trying %~2...
 pushd "%SCRIPT_DIR%"
 set "BASH_PATH=%~1"
-rem Detect MSYS root (msys32/msys64) from the bash path and set TOOLCHAIN_PREFIX to the mingw bin if found
-set "MSYS_ROOT="
-set "MINGW_SUB="
-echo %BASH_PATH% | findstr /I "msys32" >nul && (set "MSYS_ROOT=%SystemDrive%\msys32" & set "MINGW_SUB=mingw32")
-echo %BASH_PATH% | findstr /I "msys64" >nul && (set "MSYS_ROOT=%SystemDrive%\msys64" & set "MINGW_SUB=mingw64")
-echo %BASH_PATH% | findstr /I "C:\\msys32" >nul && (set "MSYS_ROOT=C:\msys32" & set "MINGW_SUB=mingw32")
-echo %BASH_PATH% | findstr /I "C:\\msys64" >nul && (set "MSYS_ROOT=C:\msys64" & set "MINGW_SUB=mingw64")
-rem If a msys root was found, set TOOLCHAIN_PREFIX inside the invoked bash so build script can prefer the mingw toolchain
+rem If PATH-style path (starts with /), call bash from PATH so Windows doesn't try to interpret it as a file path.
 if "%BASH_PATH:~0,1%"=="/" goto :use_bash_from_path
-
-if not "%MSYS_ROOT%"=="" (
-    set "TOOLCHAIN_PREFIX_WIN=%MSYS_ROOT%\%MINGW_SUB%"
-) else (
-    set "TOOLCHAIN_PREFIX_WIN="
-)
-
-rem Normalize SCRIPT_DIR to a POSIX-style path (simple transformation C:\path -> /c/path)
-set "SD=%SCRIPT_DIR%"
-if "%SD:~-1%"=="\" set "SD=%SD:~0,-1%"
-set "SCRIPT_UNIX=%SD::=%"
-set "SCRIPT_UNIX=%SCRIPT_UNIX:\=/ %"
-set "SCRIPT_UNIX=/%SCRIPT_UNIX%"
-
-rem Normalize TOOLCHAIN_PREFIX if present
-if not "%TOOLCHAIN_PREFIX_WIN%"=="" (
-    set "TP=%TOOLCHAIN_PREFIX_WIN%"
-    if "%TP:~-1%"=="\" set "TP=%TP:~0,-1%"
-    set "TOOLCHAIN_PREFIX_UNIX=%TP::=%"
-    set "TOOLCHAIN_PREFIX_UNIX=%TOOLCHAIN_PREFIX_UNIX:\=/%"
-    set "TOOLCHAIN_PREFIX_UNIX=/%TOOLCHAIN_PREFIX_UNIX%"
-) else (
-    set "TOOLCHAIN_PREFIX_UNIX="
-)
-
-rem Create a temporary bash wrapper script to avoid cmd quoting issues
-set "TMP_SH=%TEMP%\abz_build_wrapper.sh"
-if exist "%TMP_SH%" del /f /q "%TMP_SH%" >nul 2>nul
->> "%TMP_SH%" echo #!/usr/bin/env bash
->> "%TMP_SH%" echo set -o pipefail
->> "%TMP_SH%" echo export PATH=/usr/bin:/bin:\$PATH
-if not "%TOOLCHAIN_PREFIX_UNIX%"=="" (
-    >> "%TMP_SH%" echo export TOOLCHAIN_PREFIX=\"%TOOLCHAIN_PREFIX_UNIX%\"
-)
->> "%TMP_SH%" echo cd "%SCRIPT_UNIX%"
->> "%TMP_SH%" echo tr -d '\r' ^< ./build_shutdown.sh ^| bash -s -- %BUILD_ARGS%
+goto :use_bash_file
 
 :use_bash_from_path
-if exist "%TMP_SH%" (
-    bash "%TMP_SH%"
-) else (
-    bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"%SCRIPT_UNIX%\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
-)
+bash -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-if exist "%TMP_SH%" (
-    "%~1" "%TMP_SH%"
-) else (
-    "%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
-)
+"%~1" -lc "set -o pipefail; export PATH=/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 
 :after_try_bash

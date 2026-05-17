@@ -872,10 +872,8 @@ build_binary() {
     
     # Compile
     log_info "Compiling $source..."
-    compile_output="$(run_tool "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 || true)"
-    printf '%s\n' "$compile_output" | grep -v "warning:" || true
+    run_tool "$CC" "${ALL_CFLAGS[@]}" -c "$source" -o "$object" 2>&1 | grep -v "warning:" || true
     if [ ! -f "$object" ]; then
-        printf '%s\n' "$compile_output" >&2
         log_error "Compilation failed"
         exit 1
     fi

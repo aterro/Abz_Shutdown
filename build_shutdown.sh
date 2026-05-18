@@ -887,7 +887,7 @@ build_binary() {
 
     # Only add -z flags if the linker supports them. Some Windows mingw ld implementations
     # don't accept -z and will fail; detect via --help output.
-    if run_tool "$LD" --help 2>&1 | grep -q "-z"; then
+    if run_tool "$LD" --help 2>&1 | grep -q -- "-z"; then
         z_flags=(-z noexecstack -znocombreloc)
         # LLD (LLVM linker) needs -z norelro to avoid relro section issues
         if run_tool "$LD" --version 2>&1 | grep -q "LLD"; then

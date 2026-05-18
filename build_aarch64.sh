@@ -658,12 +658,16 @@ build_binary() {
     fi
     
     if [ ! -f "$binary" ]; then
-        log_error "Binary conversion failed"
-        exit 1
+        if [ "$ARCH_SHORT" = "aa64" ]; then
+            log_warn "Binary conversion failed, will attempt fix via elf2efi..."
+        else
+            log_error "Binary conversion failed"
+            exit 1
+        fi
     fi
     
-    # Add SBAT section if file exists
-    if [ -f "$SBAT_CSV" ]; then
+    # Add SBAT section if file and binary exist
+    if [ -f "$binary" ] && [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
         if [ -z "$FORMAT" ]; then
             # llvm-objcopy doesn't support --adjust-section-vma on non-relocatable files
@@ -678,7 +682,26 @@ build_binary() {
         log_warn "SBAT CSV file not found at $SBAT_CSV (optional)"
     fi
     
-    chmod a-x "$binary"
+    [ -f "$binary" ] && chmod a-x "$binary"
+
+    # Post-build fix for aarch64: if .efi missing or >100KB (likely wrong format from objcopy), use elf2efi
+    if [ "$ARCH_SHORT" = "aa64" ] && [ -f "$shared" ]; then
+        local filesize=0
+        [ -f "$binary" ] && filesize=$(stat -c%s "$binary" 2>/dev/null || stat -f%z "$binary" 2>/dev/null || wc -c < "$binary" 2>/dev/null || echo 0)
+        if [ ! -f "$binary" ] || [ "$filesize" -gt 102400 ] 2>/dev/null; then
+            log_warn "EFI binary missing or suspicious size (${filesize} bytes). Running fix-efi-on-termux.sh..."
+            local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            if [ -f "$script_dir/fix-efi-on-termux.sh" ]; then
+                bash "$script_dir/fix-efi-on-termux.sh" "$shared" "$binary"
+                chmod a-x "$binary"
+                log_info "Fix applied: $binary"
+            else
+                log_error "fix-efi-on-termux.sh not found next to the build script"
+                exit 1
+            fi
+        fi
+    fi
+
     log_info "Build complete: $binary"
 }
 

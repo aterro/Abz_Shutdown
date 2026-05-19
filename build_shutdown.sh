@@ -385,7 +385,7 @@ show_install_hint() {
         macos)
             log_info "On macOS, install a GNU cross toolchain plus GNU-EFI, for example:"
             log_info "brew install binutils"
-            log_info "brew install i686-elf-gcc or aarch64-elf-gcc (x86_64-elf-gcc comes wiith xcode by default)"
+            log_info "brew install i686-elf-gcc or aarch64-elf-gcc or x86_64-elf-gcc or via macports"
             log_info "Then point GNUEFI_PREFIX at the GNU-EFI install root if needed."
             ;;
         windows)

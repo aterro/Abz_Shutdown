@@ -57,6 +57,20 @@ setlocal
 set "BASH_PATH=%~1"
 set "DESC=%~2"
 
+rem Check for libgcc for aarch64 before running build
+set "ARCH_ARG=%BUILD_ARGS%"
+set "NEED_LIBGCC=0"
+for %%X in (%BUILD_ARGS%) do (
+    if /I "%%X"=="aarch64" set NEED_LIBGCC=1
+)
+if "%NEED_LIBGCC%"=="1" (
+    "%BASH_PATH%" -lc "aarch64-linux-gnu-gcc --print-libgcc-file-name 2>/dev/null" >nul 2>&1
+    if errorlevel 1 (
+        rem Skipping Bash candidate due to missing libgcc for aarch64
+        exit /b 1
+    )
+)
+
 rem Quick sanity check: can bash execute?
 "%BASH_PATH%" --version >nul 2>&1
 if errorlevel 1 (

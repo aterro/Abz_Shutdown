@@ -883,18 +883,19 @@ build_binary() {
     
     # Detect linker type and set appropriate flags
     local ld_flags=(-T "$LDSCRIPT" -shared -Bsymbolic -nostdlib)
-    local z_flags=()
-
-    # Only add -z flags if the linker supports them. Some Windows mingw ld implementations
-    # don't accept -z and will fail; detect via --help output.
-    if run_tool "$LD" --help 2>&1 | grep -q -- "-z"; then
-        z_flags=(-z noexecstack -znocombreloc)
-        # LLD (LLVM linker) needs -z norelro to avoid relro section issues
-        if run_tool "$LD" --version 2>&1 | grep -q "LLD"; then
-            z_flags=(-z norelro -z noexecstack -znocombreloc)
+    local z_flags=(-z noexecstack)
+    # Add -z nocombreloc only if the linker understands it
+    if "$LD" --help 2>&1 | grep -q "nocombreloc"; then
+        z_flags+=(-znocombreloc)
+    fi
+    
+    # LLD (LLVM linker) needs -z norelro to avoid relro section issues
+    if run_tool "$LD" --version 2>&1 | grep -q "LLD"; then
+        # LLD needs -z norelro; add -znocombreloc only if supported
+        z_flags=(-z norelro -z noexecstack)
+        if "$LD" --help 2>&1 | grep -q "nocombreloc"; then
+            z_flags+=(-znocombreloc)
         fi
-    else
-        log_info "Linker does not support -z flags; skipping -z options"
     fi
     
     local ld_libs=("$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A")

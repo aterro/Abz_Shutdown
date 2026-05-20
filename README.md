@@ -86,7 +86,11 @@ sudo apt-get install build-essential gnu-efi
 ```bat
 build_shutdown.bat
 ```
-The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL.
+The batch wrapper uses **smart toolchain detection** to find the fastest working bash environment:
+- Quick tests each environment for required tools (gcc, ld, objcopy) before running the full build
+- Prioritizes MinGW64/UCRT64 variants which have tools in PATH
+- Falls back to WSL when needed
+- Results in first-try success instead of multiple failed attempts
 
 #### macOS
 Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md).
@@ -157,9 +161,9 @@ To build `ABZ_Shutdown.efi` independently elsewhere:
 
 ## Architecture Support
 
-- **x86_64** (default) - Full support
-- **ia32** - Full support (32-bit x86)
-- **aarch64** - Limited support (returns FALSE from TryAcpiShutdown)
+- **x86_64** (default) - Full support with ACPI shutdown
+- **ia32** - Full support with ACPI shutdown (32-bit x86)
+- **aarch64** - Full support (compiles to valid EFI binary; ACPI shutdown not used on ARM platforms)
 
 ## Standalone Build Script Features
 

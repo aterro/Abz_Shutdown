@@ -44,7 +44,12 @@ On Windows Command Prompt or PowerShell:
 build_shutdown.bat
 ```
 
-The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL when needed.
+**Windows Build Optimization:** The batch wrapper uses smart toolchain detection to minimize build time:
+- Performs quick tool availability checks (gcc, ld, objcopy) on each bash environment
+- Prioritizes MinGW64/UCRT64 environments which have compilers in PATH
+- Skips environments without required tools instead of running full failed builds
+- Falls back to WSL when needed
+- Results in first-try success on most Windows systems
 
 ### 3. Use the Binary
 ```bash
@@ -227,10 +232,9 @@ chmod +x build_shutdown.sh
 ## Architecture Support
 
 | Architecture | Support | Notes |
-|-------------|---------|-------|
-| x86_64 | ✅ Full | Default, recommended |
-| ia32 | ✅ Full | 32-bit Intel/AMD |
-| aarch64 | ⚠️ Limited | Compiles but ACPI not used on ARM |
+| x86_64 | ✅ Full | Default, full ACPI shutdown support |
+| ia32 | ✅ Full | 32-bit x86, full ACPI shutdown support |
+| aarch64 | ✅ Full | ARM64, compiles to valid EFI binary (ACPI not used on ARM) |
 
 ## Performance
 

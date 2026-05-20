@@ -11,6 +11,17 @@ cd ~/Abz_Shutdown
 The main build script now prefers bundled GNU-EFI files in `./gnuefi/` and falls
 back to an external `../gnu-efi/` source tree only when needed.
 
+### Windows Build (Optimized)
+```bat
+build_shutdown.bat
+```
+**New!** Smart toolchain detection:
+- Quick checks for required tools (gcc, ld, objcopy) before running full builds
+- Prioritizes MinGW64/UCRT64 environments with tools in PATH
+- Skips environments without toolchain
+- Falls back to WSL when needed
+- Results in first-try success instead of multiple failed attempts
+
 ### Clean Build
 ```bash
 cd ~/Abz_Shutdown
@@ -75,9 +86,9 @@ No manual configuration needed!
 | Termux (this) | Clang/LLVM | ✅ Working |
 | Linux | GCC/GNU | ✅ Compatible |
 | macOS | Cross | ✅ Compatible |
-| Windows (WSL) | Linux GCC/GNU | ✅ Working |
-| Windows (MSYS2/mingw32) | GCC (auto-switches to LLVM/clang for ELF) | ✅ Working |
-| Windows (LLVM/clang) | Clang/LLD | ✅ Working |
+| Windows (WSL) | Linux GCC/GNU | ✅ Working (optimized detection) |
+| Windows (MSYS2/mingw64) | GCC/LLVM (auto-switches for ELF) | ✅ Working (fast detection) |
+| Windows (LLVM/clang) | Clang/LLD | ✅ Working (optimized detection) |
 
 ## Output
 

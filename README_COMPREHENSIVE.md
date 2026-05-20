@@ -36,7 +36,12 @@ On Windows Command Prompt or PowerShell:
 build_shutdown.bat
 ```
 
-The batch wrapper tries Git Bash, MSYS2, and other Windows Bash entry points first, then falls back to WSL when needed.
+**Windows Build Optimization:** The batch wrapper uses smart toolchain detection:
+- Quick checks for required tools (gcc, ld, objcopy) in each bash environment
+- Prioritizes MinGW64/UCRT64 variants which have compilers in PATH
+- Skips environments without tools instead of running full builds
+- Falls back to WSL when needed
+- Achieves first-try success on most Windows systems
 
 The binary will be created as **ABZ_Shutdown_x64.efi** (on x86-64 systems).
 
@@ -205,11 +210,11 @@ The `build_shutdown.sh` script provides:
 - For older or 32-bit only systems
 - Auto-detected if running on 32-bit system
 
-### aarch64 (ARM64, Limited Support)
-- `TryAcpiShutdown()` returns FALSE
-- ARM systems don't use ACPI for shutdown
-- Can still be compiled; just won't perform shutdown
-- Consider alternative shutdown methods for ARM systems
+### aarch64 (ARM64, Full Support)
+- Compiles to valid EFI binary (ABZ_Shutdown_aa64.efi)
+- `TryAcpiShutdown()` returns FALSE (ARM systems don't use ACPI for shutdown)
+- Useful for EFI bootloaders and firmware on ARM systems
+- Can be called from other ARM UEFI applications
 
 ## Building Independently
 

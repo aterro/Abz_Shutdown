@@ -46,6 +46,24 @@ set "BASH_CANDIDATE[7]=%ProgramFiles%\MSYS2\usr\bin\bash.exe|MSYS2 (Program File
 set "BASH_CANDIDATE[8]=%ProgramFiles%\Git\usr\bin\bash.exe|Git Bash (usr\bin)"
 set "BASH_CANDIDATE[9]=C:\msys64\mingw64\bin\bash.exe|MSYS2 MinGW64 (C:\msys64)"
 
+rem Try WSL first on 64-bit Windows (fast path)
+if /I "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
+    where wsl.exe >nul 2>nul && call :try_wsl && exit /b 0
+)
+
+rem On 32-bit Windows prefer Cygwin bash if available
+if /I "%PROCESSOR_ARCHITECTURE%"=="x86" (
+    if exist "C:\cygwin64\bin\bash.exe" (
+        call :quick_test "C:\cygwin64\bin\bash.exe" && call :try_bash "C:\cygwin64\bin\bash.exe" "Cygwin64" && exit /b 0
+    )
+    if exist "C:\cygwin\bin\bash.exe" (
+        call :quick_test "C:\cygwin\bin\bash.exe" && call :try_bash "C:\cygwin\bin\bash.exe" "Cygwin" && exit /b 0
+    )
+    if exist "C:\cygwin32\bin\bash.exe" (
+        call :quick_test "C:\cygwin32\bin\bash.exe" && call :try_bash "C:\cygwin32\bin\bash.exe" "Cygwin32" && exit /b 0
+    )
+)
+
 rem Try each candidate in order
 for /l %%i in (0,1,9) do (
     for /f "tokens=1,2 delims=|" %%A in ("!BASH_CANDIDATE[%%i]!") do (

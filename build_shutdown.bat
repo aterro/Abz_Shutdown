@@ -16,16 +16,21 @@ rem MSYS2 MinGW64 has tools in /mingw64/bin - these are fastest
 set "BASH_CANDIDATE[0]=%SystemDrive%\msys64\mingw64\bin\bash.exe|MSYS2 MinGW64"
 rem Git Bash (bin variant) usually has better tool support
 set "BASH_CANDIDATE[1]=%ProgramFiles%\Git\bin\bash.exe|Git Bash (bin)"
+rem Additional Git install path often used by portable Git
+set "BASH_CANDIDATE[2]=C:\git\bin\bash.exe|Git Bash (C:\git)"
 rem MSYS2 MinGW32 
-set "BASH_CANDIDATE[2]=%SystemDrive%\msys64\mingw32\bin\bash.exe|MSYS2 MinGW32"
+set "BASH_CANDIDATE[3]=%SystemDrive%\msys64\mingw32\bin\bash.exe|MSYS2 MinGW32"
+rem MSYS32 support
+set "BASH_CANDIDATE[4]=%SystemDrive%\msys32\usr\bin\bash.exe|MSYS2 (msys32)"
+set "BASH_CANDIDATE[5]=C:\msys32\usr\bin\bash.exe|MSYS2 (C:\msys32)"
 rem Fallback to standard MSYS2 paths
-set "BASH_CANDIDATE[3]=%SystemDrive%\msys64\usr\bin\bash.exe|MSYS2 (msys64)"
-set "BASH_CANDIDATE[4]=%ProgramFiles%\MSYS2\usr\bin\bash.exe|MSYS2 (Program Files)"
-set "BASH_CANDIDATE[5]=%ProgramFiles%\Git\usr\bin\bash.exe|Git Bash (usr\bin)"
-set "BASH_CANDIDATE[6]=C:\msys64\mingw64\bin\bash.exe|MSYS2 MinGW64 (C:\msys64)"
+set "BASH_CANDIDATE[6]=%SystemDrive%\msys64\usr\bin\bash.exe|MSYS2 (msys64)"
+set "BASH_CANDIDATE[7]=%ProgramFiles%\MSYS2\usr\bin\bash.exe|MSYS2 (Program Files)"
+set "BASH_CANDIDATE[8]=%ProgramFiles%\Git\usr\bin\bash.exe|Git Bash (usr\bin)"
+set "BASH_CANDIDATE[9]=C:\msys64\mingw64\bin\bash.exe|MSYS2 MinGW64 (C:\msys64)"
 
 rem Try each candidate in order
-for /l %%i in (0,1,6) do (
+for /l %%i in (0,1,9) do (
     for /f "tokens=1,2 delims=|" %%A in ("!BASH_CANDIDATE[%%i]!") do (
         if exist "%%A" (
             call :quick_test "%%A" && call :try_bash "%%A" "%%B" && exit /b 0

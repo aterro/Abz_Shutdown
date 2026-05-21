@@ -1010,22 +1010,14 @@ build_binary() {
     fi
 
     if ! head -c 2 "$binary" | grep -q "^MZ"; then
-        # Force running elf2efi.py here unconditionally (no existence check)
+        # Immediately attempt Python-based conversion BEFORE emitting an error
         python ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || python3 ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || true
-        log_warn "Binary conversion produced a non-EFI output (missing MZ header)."
-        # Attempt Python fallback for x86_64 and aarch64 when available
-        if { [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "x86_64" ]; } && command -v python3 >/dev/null 2>&1 && [ -f "./elf2efi.py" ]; then
-            log_info "Attempting Python elf2efi.py fallback for $ARCH..."
-            if python3 ./elf2efi.py "$shared" "$binary"; then
-                log_info "Python elf2efi.py conversion succeeded"
-            else
-                log_error "Python elf2efi.py conversion failed"
-                show_objcopy_hint "$FORMAT"
-                exit 1
-            fi
+        # Re-check for MZ header after python attempt
+        if head -c 2 "$binary" | grep -q "^MZ"; then
+            log_info "Python elf2efi.py produced a valid EFI image; continuing"
         else
+            log_warn "Binary conversion produced a non-EFI output (missing MZ header) even after python fallback."
             log_error "Binary conversion produced a non-EFI output (missing MZ header). Check the selected objcopy tool."
-            python ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || python3 ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || true
             show_objcopy_hint "$FORMAT"
             exit 1
         fi

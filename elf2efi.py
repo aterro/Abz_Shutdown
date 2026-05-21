@@ -7,6 +7,7 @@ import sys
 # --- Constants ---
 PE_MACHINE_ARM64 = 0xAA64
 PE_MACHINE_AMD64 = 0x8664
+PE_MACHINE_I386 = 0x014c
 PE_FILE_ALIGN = 0x200
 PE_SECTION_ALIGN = 0x1000
 PE_IMAGE_BASE = 0x10000000
@@ -21,6 +22,7 @@ RELOC_BASE_DIR64 = 0xA
 KEEP_SECTIONS = {'.text', '.rodata', '.data', '.dynamic', '.dynsym', '.dynstr'}
 EM_AARCH64 = 183
 EM_X86_64 = 62
+EM_386 = 3
 
 
 def align_up(v, a):
@@ -33,20 +35,35 @@ def read_elf_sections(data):
     if data[:4] != b'\x7fELF':
         raise ValueError('Not an ELF file')
 
-    # Parse ELF64 header
-    e_machine = struct.unpack_from('<H', data, 18)[0]
-    e_entry = struct.unpack_from('<Q', data, 24)[0]
-    e_shoff = struct.unpack_from('<Q', data, 40)[0]
-    e_shentsize = struct.unpack_from('<H', data, 58)[0]
-    e_shnum = struct.unpack_from('<H', data, 60)[0]
-    e_shstrndx = struct.unpack_from('<H', data, 62)[0]
+    ei_class = data[4]
+    is_64 = (ei_class == 2)
+
+    # Parse header depending on class
+    if is_64:
+        e_machine = struct.unpack_from('<H', data, 18)[0]
+        e_entry = struct.unpack_from('<Q', data, 24)[0]
+        e_shoff = struct.unpack_from('<Q', data, 40)[0]
+        e_shentsize = struct.unpack_from('<H', data, 58)[0]
+        e_shnum = struct.unpack_from('<H', data, 60)[0]
+        e_shstrndx = struct.unpack_from('<H', data, 62)[0]
+    else:
+        e_machine = struct.unpack_from('<H', data, 18)[0]
+        e_entry = struct.unpack_from('<I', data, 24)[0]
+        e_shoff = struct.unpack_from('<I', data, 32)[0]
+        e_shentsize = struct.unpack_from('<H', data, 46)[0]
+        e_shnum = struct.unpack_from('<H', data, 48)[0]
+        e_shstrndx = struct.unpack_from('<H', data, 50)[0]
 
     # Read section headers
     sections = []
     for i in range(e_shnum):
         off = e_shoff + i * e_shentsize
-        sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size = \
-            struct.unpack_from('<IIQQQQ', data, off)
+        if is_64:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size = \
+                struct.unpack_from('<IIQQQQ', data, off)
+        else:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size = \
+                struct.unpack_from('<IIIIII', data, off)
         sections.append({
             'idx': i,
             'name_idx': sh_name,
@@ -66,7 +83,7 @@ def read_elf_sections(data):
             end = strtab.find(b'\0', sec['name_idx'])
             sec['name'] = strtab[sec['name_idx']:end].decode('latin-1')
 
-    return sections, e_entry, e_machine
+    return sections, e_entry, e_machine, is_64
 
 
 def elf_section_by_name(sections, name):
@@ -76,13 +93,12 @@ def elf_section_by_name(sections, name):
     return None
 
 
-def elf_symbols(sections):
+def elf_symbols(sections, is_64):
     """Return list of symbols from .symtab or .dynsym."""
     symsec = elf_section_by_name(sections, '.symtab') or elf_section_by_name(sections, '.dynsym')
     if not symsec:
         return []
     d = symsec['data']
-    entsize = 24  # ELF64 symbol
     symbols = []
     strsec = None
     # Find the associated string table
@@ -91,29 +107,50 @@ def elf_symbols(sections):
             strsec = s
             break
     st = strsec['data'] if strsec else b''
-    for i in range(0, len(d), entsize):
-        if i + entsize > len(d):
-            break
-        st_name, st_info, st_other, st_shndx, st_value, st_size = \
-            struct.unpack_from('<IBBHQQ', d, i)
-        name = ''
-        if st_name < len(st):
-            end = st.find(b'\0', st_name)
-            name = st[st_name:end].decode('latin-1')
-        symbols.append({
-            'name': name,
-            'info': st_info,
-            'other': st_other,
-            'shndx': st_shndx,
-            'value': st_value,
-            'size': st_size,
-        })
+    if is_64:
+        entsize = 24  # ELF64 symbol
+        for i in range(0, len(d), entsize):
+            if i + entsize > len(d):
+                break
+            st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                struct.unpack_from('<IBBHQQ', d, i)
+            name = ''
+            if st_name < len(st):
+                end = st.find(b'\0', st_name)
+                name = st[st_name:end].decode('latin-1')
+            symbols.append({
+                'name': name,
+                'info': st_info,
+                'other': st_other,
+                'shndx': st_shndx,
+                'value': st_value,
+                'size': st_size,
+            })
+    else:
+        entsize = 16  # ELF32 symbol
+        for i in range(0, len(d), entsize):
+            if i + entsize > len(d):
+                break
+            st_name, st_value, st_size, st_info, st_other, st_shndx = \
+                struct.unpack_from('<IIIBBH', d, i)
+            name = ''
+            if st_name < len(st):
+                end = st.find(b'\0', st_name)
+                name = st[st_name:end].decode('latin-1')
+            symbols.append({
+                'name': name,
+                'info': st_info,
+                'other': st_other,
+                'shndx': st_shndx,
+                'value': st_value,
+                'size': st_size,
+            })
     return symbols
 
 
-def elf_relocations(sections, e_machine):
+def elf_relocations(sections, e_machine, is_64):
     """Collect relevant relocation offsets from .rela* sections.
-    Supports AArch64 and x86_64 (ELF64).
+    Supports AArch64, x86_64 (ELF64) and 32-bit RELA for i386 if present.
     """
     relocs = []
     for s in sections:
@@ -121,28 +158,42 @@ def elf_relocations(sections, e_machine):
         if not name.startswith('.rela'):
             continue
         d = s['data']
-        entsize = 24  # ELF64 rela
-        for i in range(0, len(d), entsize):
-            if i + entsize > len(d):
-                break
-            r_offset, r_info, r_addend = struct.unpack_from('<QQQ', d, i)
-            r_type = r_info & 0xFFFFFFFF
-            # AArch64 relocation types
-            if e_machine == EM_AARCH64:
-                if r_type == 1027:  # R_AARCH64_RELATIVE
-                    relocs.append(r_offset)
-                elif r_type == 257:  # R_AARCH64_ABS64
-                    relocs.append(r_offset)
-            # x86_64 relocation types
-            elif e_machine == EM_X86_64:
-                if r_type == 8:   # R_X86_64_RELATIVE
-                    relocs.append(r_offset)
-                elif r_type == 1: # R_X86_64_64
-                    relocs.append(r_offset)
-            else:
-                # Unknown architecture: conservatively include RELATIVE-like types
-                if r_type in (8, 1027, 257, 1):
-                    relocs.append(r_offset)
+        if is_64:
+            entsize = 24  # ELF64 rela
+            for i in range(0, len(d), entsize):
+                if i + entsize > len(d):
+                    break
+                r_offset, r_info, r_addend = struct.unpack_from('<QQQ', d, i)
+                r_type = r_info & 0xFFFFFFFF
+                # AArch64 relocation types
+                if e_machine == EM_AARCH64:
+                    if r_type == 1027:  # R_AARCH64_RELATIVE
+                        relocs.append(r_offset)
+                    elif r_type == 257:  # R_AARCH64_ABS64
+                        relocs.append(r_offset)
+                # x86_64 relocation types
+                elif e_machine == EM_X86_64:
+                    if r_type == 8:   # R_X86_64_RELATIVE
+                        relocs.append(r_offset)
+                    elif r_type == 1: # R_X86_64_64
+                        relocs.append(r_offset)
+                else:
+                    if r_type in (8, 1027, 257, 1):
+                        relocs.append(r_offset)
+        else:
+            entsize = 12  # ELF32 rela
+            for i in range(0, len(d), entsize):
+                if i + entsize > len(d):
+                    break
+                r_offset, r_info, r_addend = struct.unpack_from('<III', d, i)
+                r_type = r_info & 0xFF
+                # i386 REL/RELA types
+                if e_machine == EM_386:
+                    if r_type == 8 or r_type == 3:  # R_386_RELATIVE or R_386_32
+                        relocs.append(r_offset)
+                else:
+                    if r_type in (8, 3):
+                        relocs.append(r_offset)
     return sorted(set(relocs))
 
 
@@ -312,7 +363,7 @@ def main():
     with open(sys.argv[1], 'rb') as f:
         elf_data = f.read()
 
-    sections, e_entry = read_elf_sections(elf_data)
+    sections, e_entry, e_machine, is_64 = read_elf_sections(elf_data)
 
     keep = [s for s in sections if s.get('name') in KEEP_SECTIONS and s.get('data')]
     if not keep:
@@ -325,7 +376,7 @@ def main():
         sys.exit(1)
 
     # Collect relocations
-    reloc_addrs = elf_relocations(sections)
+    reloc_addrs = elf_relocations(sections, e_machine, is_64)
 
     # Build .reloc blocks
     reloc_blocks = None

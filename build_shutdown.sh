@@ -633,13 +633,46 @@ resolve_toolchain() {
     fi
 
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
-    for tool in "${required_tools[@]}"; do
-        if [ -z "$tool" ] || ! tool_exists "$tool"; then
-            log_error "Required tool not found: ${tool:-<unset>}"
+    # BFD target required by objcopy for EFI conversion
+    local bfd_target=""
+    case "$ARCH" in
+        ia32)    bfd_target="pei-i386" ;;
+        x86_64)  bfd_target="pei-x86-64" ;;
+        aarch64) bfd_target="pei-aarch64-little" ;;
+    esac
+
+    # Verify each required tool and provide actionable diagnostics
+    for tool_name in CC LD OBJCOPY AR RANLIB; do
+        tool_val="${!tool_name}"
+        if [ -z "$tool_val" ] || ! tool_exists "$tool_val"; then
+            if [ "$tool_name" = "OBJCOPY" ]; then
+                log_error "Required objcopy not found or unset: OBJCOPY='${tool_val:-<unset>}'"
+                if [ -n "$bfd_target" ]; then
+                    log_error "objcopy must support BFD target: $bfd_target (needed to create EFI image for $ARCH)."
+                    log_info "Install GNU binutils (provides objcopy) that lists '$bfd_target' in its supported targets, or set OBJCOPY to a suitable objcopy."
+                    log_info "Examples: x86_64-elf-objcopy or x86_64-linux-gnu-objcopy for x86_64; i686-elf-objcopy for ia32."
+                else
+                    log_info "Set OBJCOPY to a GNU objcopy (e.g., x86_64-elf-objcopy) or use LLVM's llvm-objcopy and adjust FORMAT."
+                fi
+            else
+                log_error "Required tool not found: $tool_name='${tool_val:-<unset>}'"
+                log_info "Set $tool_name or use TOOLCHAIN_PREFIX/LLVM_PREFIX to locate a suitable toolchain."
+            fi
             show_install_hint
             exit 1
         fi
     done
+
+    # Verify the selected objcopy actually supports the required BFD target (if applicable)
+    if [ -n "$bfd_target" ]; then
+        if ! run_tool "$OBJCOPY" --help 2>&1 | grep -q "$bfd_target"; then
+            log_error "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target."
+            log_info "Either install a GNU objcopy with $bfd_target support (package: binutils) or set OBJCOPY to such a tool."
+            log_info "If using LLVM's llvm-objcopy, it may not implement the EFI targets; prefer a GNU objcopy that lists '$bfd_target' in its supported targets."
+            show_install_hint
+            exit 1
+        fi
+    fi
 }
 
 resolve_gnuefi_paths() {

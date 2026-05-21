@@ -1011,7 +1011,7 @@ build_binary() {
 
     if ! head -c 2 "$binary" | grep -q "^MZ"; then
         # Immediately attempt Python-based conversion BEFORE emitting an error
-        python ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || python3 ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || true
+        python ./elf2efi.py "$shared" "$binary" || python3 ./elf2efi.py "$shared" "$binary" || true
         # Re-check for MZ header after python attempt
         if head -c 2 "$binary" | grep -q "^MZ"; then
             log_info "Python elf2efi.py produced a valid EFI image; continuing"

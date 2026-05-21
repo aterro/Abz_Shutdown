@@ -19,7 +19,7 @@ rem Fast path: if user requested x86_64 AND running on 32-bit Windows, invoke ba
 if /I "%~1"=="x86_64" (
     if /I "%PROCESSOR_ARCHITECTURE%"=="x86" (
         for %%I in (bash.exe) do set "PATH_BASH=%%~$PATH:I"
-        if defined PATH_BASH (
+        if not "%PATH_BASH%"=="" (
             echo [INFO] Invoking bash directly for x86_64 build on Windows ia32 host...
             "%PATH_BASH%" -lc "cd '%UNIX_SCRIPT_DIR%'; ./build_shutdown.sh %*"
             exit /b %ERRORLEVEL%

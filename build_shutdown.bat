@@ -3,9 +3,26 @@ setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+rem Compute a POSIX-style path for Bash if cygpath is unavailable (skip cygpath usage)
+setlocal enabledelayedexpansion
+set "_SD=%SCRIPT_DIR%"
+set "drive=!_SD:~0,1!"
+set "rest=!_SD:~2!"
+set "rest=!rest:\=/!"
+set "UNIX_SCRIPT_DIR=/!drive!!rest!"
+endlocal & set "UNIX_SCRIPT_DIR=%UNIX_SCRIPT_DIR%"
 set "LAST_EXIT_CODE=1"
 set "PATH_BASH="
 set "BUILD_ARGS=%*"
+
+rem Prefer not to force LLVM objcopy for ia32 builds (let MSYS2's objcopy be used if present)
+echo %BUILD_ARGS% | findstr /i "ia32" >nul 2>&1
+if %errorlevel%==0 (
+    set "BASH_ENV_EXPORTS=export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; "
+) else (
+    set "BASH_ENV_EXPORTS=export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; export OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; "
+)
+
 
 for %%I in (bash.exe) do set "PATH_BASH=%%~$PATH:I"
 
@@ -91,12 +108,12 @@ if "%BASH_PATH:~0,1%"=="/" goto :use_bash_from_path
 goto :use_bash_file
 
 :use_bash_from_path
-bash -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; export OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+bash -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; export OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"%UNIX_SCRIPT_DIR%\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-"%BASH_PATH%" -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; export OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+"%BASH_PATH%" -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; export OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"%UNIX_SCRIPT_DIR%\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 
 :after_try_bash
@@ -118,3 +135,4 @@ set "LAST_EXIT_CODE=%ERRORLEVEL%"
 if "%LAST_EXIT_CODE%"=="0" exit /b 0
 echo [WARN] WSL failed with exit code %LAST_EXIT_CODE%.
 exit /b 1
+

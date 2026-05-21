@@ -976,9 +976,9 @@ build_binary() {
 
     if [ "$objcopy_rc" -ne 0 ] || [ ! -f "$binary" ]; then
         log_warn "objcopy conversion failed (rc=$objcopy_rc)."
-        # Fallback: try Python-based ELF->EFI converter for aarch64 builds
-        if [ "$ARCH" = "aarch64" ] && command -v python3 >/dev/null 2>&1 && [ -f "./elf2efi.py" ]; then
-            log_info "Attempting Python elf2efi.py fallback for aarch64..."
+        # Fallback: try Python-based ELF->EFI converter for aarch64 and x86_64 builds
+        if ( [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "x86_64" ] ) && command -v python3 >/dev/null 2>&1 && [ -f "./elf2efi.py" ]; then
+            log_info "Attempting Python elf2efi.py fallback for $ARCH..."
             if python3 ./elf2efi.py "$shared" "$binary"; then
                 log_info "Python elf2efi.py conversion succeeded"
             else

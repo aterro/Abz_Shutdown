@@ -6,6 +6,7 @@ import sys
 
 # --- Constants ---
 PE_MACHINE_ARM64 = 0xAA64
+PE_MACHINE_AMD64 = 0x8664
 PE_FILE_ALIGN = 0x200
 PE_SECTION_ALIGN = 0x1000
 PE_IMAGE_BASE = 0x10000000
@@ -18,6 +19,8 @@ SECT_CHAR_MASK = {
 }
 RELOC_BASE_DIR64 = 0xA
 KEEP_SECTIONS = {'.text', '.rodata', '.data', '.dynamic', '.dynsym', '.dynstr'}
+EM_AARCH64 = 183
+EM_X86_64 = 62
 
 
 def align_up(v, a):
@@ -31,6 +34,7 @@ def read_elf_sections(data):
         raise ValueError('Not an ELF file')
 
     # Parse ELF64 header
+    e_machine = struct.unpack_from('<H', data, 18)[0]
     e_entry = struct.unpack_from('<Q', data, 24)[0]
     e_shoff = struct.unpack_from('<Q', data, 40)[0]
     e_shentsize = struct.unpack_from('<H', data, 58)[0]
@@ -62,7 +66,7 @@ def read_elf_sections(data):
             end = strtab.find(b'\0', sec['name_idx'])
             sec['name'] = strtab[sec['name_idx']:end].decode('latin-1')
 
-    return sections, e_entry
+    return sections, e_entry, e_machine
 
 
 def elf_section_by_name(sections, name):
@@ -107,8 +111,10 @@ def elf_symbols(sections):
     return symbols
 
 
-def elf_relocations(sections):
-    """Collect R_AARCH64_RELATIVE relocations from .rela* sections."""
+def elf_relocations(sections, e_machine):
+    """Collect relevant relocation offsets from .rela* sections.
+    Supports AArch64 and x86_64 (ELF64).
+    """
     relocs = []
     for s in sections:
         name = s.get('name', '')
@@ -121,10 +127,22 @@ def elf_relocations(sections):
                 break
             r_offset, r_info, r_addend = struct.unpack_from('<QQQ', d, i)
             r_type = r_info & 0xFFFFFFFF
-            if r_type == 1027:  # R_AARCH64_RELATIVE
-                relocs.append(r_offset)
-            elif r_type == 257:  # R_AARCH64_ABS64
-                relocs.append(r_offset)
+            # AArch64 relocation types
+            if e_machine == EM_AARCH64:
+                if r_type == 1027:  # R_AARCH64_RELATIVE
+                    relocs.append(r_offset)
+                elif r_type == 257:  # R_AARCH64_ABS64
+                    relocs.append(r_offset)
+            # x86_64 relocation types
+            elif e_machine == EM_X86_64:
+                if r_type == 8:   # R_X86_64_RELATIVE
+                    relocs.append(r_offset)
+                elif r_type == 1: # R_X86_64_64
+                    relocs.append(r_offset)
+            else:
+                # Unknown architecture: conservatively include RELATIVE-like types
+                if r_type in (8, 1027, 257, 1):
+                    relocs.append(r_offset)
     return sorted(set(relocs))
 
 
@@ -137,7 +155,7 @@ def pe_section_header(name, vsize, vaddr, raw_size, raw_off, chars):
         0, 0, 0, 0, chars)
 
 
-def build_pe(sections_data, reloc_blocks, text_va, entry_va):
+def build_pe(sections_data, reloc_blocks, text_va, entry_va, e_machine):
     """Build complete PE/COFF EFI file as bytes."""
     num_secs = len(sections_data)
     if reloc_blocks:
@@ -195,8 +213,9 @@ def build_pe(sections_data, reloc_blocks, text_va, entry_va):
     buf += b'\0' * dos_stub_size
 
     # COFF header
+    machine = PE_MACHINE_ARM64 if e_machine == EM_AARCH64 else PE_MACHINE_AMD64
     buf += struct.pack('<HHIIIHH',
-        PE_MACHINE_ARM64,
+        machine,
         num_secs,
         0x00000000,  # TimeDateStamp
         0,           # PointerToSymbolTable
@@ -348,7 +367,7 @@ def main():
     text_va = PE_SECTION_ALIGN  # First section gets RVA = SectionAlignment
     entry_va = text_va + entry_off
 
-    pe_data = build_pe(secs_data, reloc_blocks, text_va, entry_va)
+    pe_data = build_pe(secs_data, reloc_blocks, text_va, entry_va, e_machine)
 
     with open(sys.argv[2], 'wb') as f:
         f.write(pe_data)

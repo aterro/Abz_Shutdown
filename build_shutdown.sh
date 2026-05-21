@@ -665,12 +665,17 @@ resolve_toolchain() {
 
     # Verify the selected objcopy actually supports the required BFD target (if applicable)
     if [ -n "$bfd_target" ]; then
-        if ! run_tool "$OBJCOPY" --help 2>&1 | grep -q "$bfd_target"; then
-            log_error "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target."
-            log_info "Either install a GNU objcopy with $bfd_target support (package: binutils) or set OBJCOPY to such a tool."
-            log_info "If using LLVM's llvm-objcopy, it may not implement the EFI targets; prefer a GNU objcopy that lists '$bfd_target' in its supported targets."
-            show_install_hint
-            exit 1
+        # llvm-objcopy does not list BFD targets in --help output; allow section-based conversion when detected
+        if run_tool "$OBJCOPY" --version 2>&1 | grep -qi "llvm-objcopy"; then
+            log_warn "Detected llvm-objcopy; it may not list BFD targets. Section-based conversion will be used instead."
+        else
+            if ! run_tool "$OBJCOPY" --help 2>&1 | grep -q "$bfd_target"; then
+                log_error "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target."
+                log_info "Either install a GNU objcopy with $bfd_target support (package: binutils) or set OBJCOPY to such a tool."
+                log_info "If using LLVM's llvm-objcopy, it may not implement the EFI targets; prefer a GNU objcopy that lists '$bfd_target' in its supported targets."
+                show_install_hint
+                exit 1
+            fi
         fi
     fi
 }

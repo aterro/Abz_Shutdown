@@ -632,6 +632,17 @@ resolve_toolchain() {
         fi
     fi
 
+    # For ia32 hosts prefer the MSYS2/mingw32 objcopy if available (it historically worked on older setups)
+    if [ "$ARCH" = "ia32" ]; then
+        for alt in "/c/msys32/mingw32/bin/objcopy" "/c/msys32/usr/bin/objcopy" "/msys32/mingw32/bin/objcopy" "/c/msys32/mingw32/bin/objcopy.exe" "/c/msys32/mingw32/bin/objcopy"; do
+            if tool_exists "$alt"; then
+                OBJCOPY="$alt"
+                log_info "Preferring MSYS2 objcopy for ia32: $OBJCOPY"
+                break
+            fi
+        done
+    fi
+
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
     # BFD target required by objcopy for EFI conversion
     local bfd_target=""

@@ -91,12 +91,12 @@ if "%BASH_PATH:~0,1%"=="/" goto :use_bash_from_path
 goto :use_bash_file
 
 :use_bash_from_path
-bash -lc "set -o pipefail; export PATH=/mingw64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+bash -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-"%BASH_PATH%" -lc "set -o pipefail; export PATH=/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+"%BASH_PATH%" -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 
 :after_try_bash

@@ -1025,6 +1025,7 @@ build_binary() {
             fi
         else
             log_error "Binary conversion produced a non-EFI output (missing MZ header). Check the selected objcopy tool."
+            python ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || python3 ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || true
             show_objcopy_hint "$FORMAT"
             exit 1
         fi

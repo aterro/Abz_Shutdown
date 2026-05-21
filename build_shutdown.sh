@@ -1010,10 +1010,8 @@ build_binary() {
     fi
 
     if ! head -c 2 "$binary" | grep -q "^MZ"; then
-        # Last-resort: run elf2efi.py unconditionally if present (ensure fixer runs at this spot)
-        if [ -f "./elf2efi.py" ]; then
-            python ./elf2efi.py "$shared" "$binary" 2>/dev/null || python3 ./elf2efi.py "$shared" "$binary" 2>/dev/null || true
-        fi
+        # Force running elf2efi.py here unconditionally (no existence check)
+        python ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || python3 ./elf2efi.py "$shared" "$binary" >/dev/null 2>&1 || true
         log_warn "Binary conversion produced a non-EFI output (missing MZ header)."
         # Attempt Python fallback for x86_64 and aarch64 when available
         if { [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "x86_64" ]; } && command -v python3 >/dev/null 2>&1 && [ -f "./elf2efi.py" ]; then

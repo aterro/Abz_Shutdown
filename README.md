@@ -1,5 +1,7 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
+Version: v3.0 — Improved support for old compilers (Windows ia32 toolchains, Python fallback)
+
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
 It's a fix for buggy firmware that restart instead of shutdown using the "reset -s" command such as the B390 series from Asus and others.

@@ -1,6 +1,7 @@
 ================================================================================
                         ABZ_SHUTDOWN.EFI PROJECT SUMMARY
                               2026-05-04
+Version: v3.0 — Improved support for old compilers (Windows ia32 toolchains, Python fallback)
 ================================================================================
 
 PROJECT OVERVIEW

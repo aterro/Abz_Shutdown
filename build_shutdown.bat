@@ -91,12 +91,12 @@ if "%BASH_PATH:~0,1%"=="/" goto :use_bash_from_path
 goto :use_bash_file
 
 :use_bash_from_path
-bash -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+bash -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/usr/bin:/bin:\$PATH; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 goto :after_try_bash
 
 :use_bash_file
-"%BASH_PATH%" -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
+"%BASH_PATH%" -lc "set -o pipefail; export PATH=/c/msys32/mingw32/bin:/c/LLVM/bin:/mingw64/bin:/ucrt64/bin:/usr/bin:/bin:\$PATH; export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd \"$(cygpath -u '%SCRIPT_DIR%')\"; tr -d '\r' < ./build_shutdown.sh | bash -s -- %BUILD_ARGS%"
 set "LAST_EXIT_CODE=%ERRORLEVEL%"
 
 :after_try_bash

@@ -15,6 +15,21 @@ set "LAST_EXIT_CODE=1"
 set "PATH_BASH="
 set "BUILD_ARGS=%*"
 
+rem Fast path: if user requested x86_64, invoke bash directly to run the build script (avoids complex env exports)
+if /I "%~1"=="x86_64" (
+    for %%I in (bash.exe) do set "PATH_BASH=%%~$PATH:I"
+    if defined PATH_BASH (
+        echo [INFO] Invoking bash directly for x86_64 build...
+        "%PATH_BASH%" -lc "cd '%UNIX_SCRIPT_DIR%'; ./build_shutdown.sh %*"
+        exit /b %ERRORLEVEL%
+    ) else (
+        echo [INFO] Invoking bash from PATH for x86_64 build...
+        bash -lc "cd '%UNIX_SCRIPT_DIR%'; ./build_shutdown.sh %*"
+        exit /b %ERRORLEVEL%
+    )
+)
+
+
 rem Prefer not to force LLVM objcopy for ia32 builds (let MSYS2's objcopy be used if present)
 echo %BUILD_ARGS% | findstr /i "ia32" >nul 2>&1
 if %errorlevel%==0 (

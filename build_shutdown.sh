@@ -140,7 +140,6 @@ resolve_objcopy_format() {
     local required_target=""
     local bfd_target=""
 
-    [ -z "$FORMAT" ] && return 0
 
     case "$ARCH" in
         ia32)    bfd_target="pei-i386" ;;
@@ -164,12 +163,36 @@ resolve_objcopy_format() {
     done
 
     if command -v brew >/dev/null 2>&1; then
+        # Prefer opt link if present
         local brew_gobjcopy="$(brew --prefix)/opt/binutils/bin/gobjcopy"
         if [ -x "$brew_gobjcopy" ] && "$brew_gobjcopy" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
             OBJCOPY="$brew_gobjcopy"
             log_info "Using alternative objcopy: $OBJCOPY"
             return 0
         fi
+
+        # Search Homebrew Cellar for any binutils objcopy that supports the target
+        local cellar_prefix="$(brew --prefix)/Cellar"
+        if [ -d "$cellar_prefix" ]; then
+            for f in "$cellar_prefix"/binutils/*/bin/objcopy "$cellar_prefix"/*-binutils/*/bin/objcopy; do
+                [ -x "$f" ] || continue
+                if "$f" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
+                    OBJCOPY="$f"
+                    log_info "Using alternative objcopy: $OBJCOPY"
+                    return 0
+                fi
+            done
+        fi
+
+        # As a last resort, check common brew opt locations for objcopy
+        for opt_candidate in "$(brew --prefix)/opt/binutils/bin/objcopy" "$(brew --prefix)/opt/*/bin/objcopy"; do
+            [ -x "$opt_candidate" ] || continue
+            if "$opt_candidate" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
+                OBJCOPY="$opt_candidate"
+                log_info "Using alternative objcopy: $OBJCOPY"
+                return 0
+            fi
+        done
     fi
 
     log_warn "No objcopy with $bfd_target support found. Will attempt section-based conversion."
@@ -681,11 +704,17 @@ resolve_toolchain() {
             log_warn "Detected llvm-objcopy; it may not list BFD targets. Section-based conversion will be used instead."
         else
             if ! run_tool "$OBJCOPY" --help 2>&1 | grep -q "$bfd_target"; then
-                log_error "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target."
-                log_info "Either install a GNU objcopy with $bfd_target support (package: binutils) or set OBJCOPY to such a tool."
-                log_info "If using LLVM's llvm-objcopy, it may not implement the EFI targets; prefer a GNU objcopy that lists '$bfd_target' in its supported targets."
-                show_install_hint
-                exit 1
+                log_warn "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target. Attempting to auto-detect an appropriate objcopy..."
+                # Try to auto-find a working objcopy (this function will set OBJCOPY if successful)
+                resolve_objcopy_format || true
+                # Re-check after attempting auto-detection
+                if ! run_tool "$OBJCOPY" --help 2>&1 | grep -q "$bfd_target"; then
+                    log_error "Selected objcopy ('$OBJCOPY') lacks support for required target: $bfd_target."
+                    log_info "Either install a GNU objcopy with $bfd_target support (package: binutils) or set OBJCOPY to such a tool."
+                    log_info "If using LLVM's llvm-objcopy, it may not implement the EFI targets; prefer a GNU objcopy that lists '$bfd_target' in its supported targets."
+                    show_install_hint
+                    exit 1
+                fi
             fi
         fi
     fi

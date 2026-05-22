@@ -50,22 +50,27 @@ ln -s /opt/local/bin/i686-w64-mingw32-objcopy .
 **Source:** MacPorts
 
 ### aarch64 (ARM 64-bit) - OPTIONAL
-Currently not included. To enable aarch64 builds:
 
-1. Download the ARM GNU Toolchain for your platform:
+aarch64 support is **not available** through MacPorts as of now. To build for aarch64:
+
+1. Download the ARM GNU Toolchain for your platform from https://developer.arm.com/downloads/-/gnu-a:
    - **macOS (Intel):** `arm-gnu-toolchain-15.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
    - **macOS (Apple Silicon):** `arm-gnu-toolchain-15.2.rel1-darwin-arm64-aarch64-none-elf.tar.xz`
-   
-   From: https://developer.arm.com/downloads/-/gnu-a
 
-2. Extract and symlink to this directory:
+2. Extract and create symlinks:
    ```bash
    tar xf arm-gnu-toolchain-15.2.rel1-darwin-*-aarch64-none-elf.tar.xz
    cd bin/
-   ln -s /path/to/extracted/bin/aarch64-none-elf-* ./
+   ln -s /path/to/extracted/bin/aarch64-none-elf-gcc .
+   ln -s /path/to/extracted/bin/aarch64-none-elf-ld .
+   ln -s /path/to/extracted/bin/aarch64-none-elf-objcopy .
+   ln -s /path/to/extracted/bin/aarch64-none-elf-ar .
+   ln -s /path/to/extracted/bin/aarch64-none-elf-ranlib .
    ```
 
 3. The build script will auto-detect and use these tools.
+
+**Note:** MacPorts provides `aarch64-elf-binutils` but not `aarch64-elf-gcc`. The `arm-none-eabi-` toolchain is for 32-bit ARM, not 64-bit ARM (aarch64).
 
 ## About mingw32 objcopy
 
@@ -76,10 +81,10 @@ The MinGW binutils (`x86_64-w64-mingw32-objcopy` and `i686-w64-mingw32-objcopy`)
 Simply run from the project root:
 
 ```bash
-./build_all_with_ports.sh              # Build all available (x64, ia32, +aa64 if present)
-./build_all_with_ports.sh x64          # Build x64 only
-./build_all_with_ports.sh ia32         # Build ia32 only
-./build_all_with_ports.sh aa64         # Build aarch64 only (if tools available)
+./build_via_macports_on_mac.sh              # Build all available (x64, ia32, +aa64 if present)
+./build_via_macports_on_mac.sh x64          # Build x64 only
+./build_via_macports_on_mac.sh ia32         # Build ia32 only
+./build_via_macports_on_mac.sh aa64         # Build aarch64 only (if tools available)
 ```
 
 The build script automatically detects available tools in this directory and uses them.

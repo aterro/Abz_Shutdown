@@ -81,7 +81,7 @@ if [ $missing -eq 0 ]; then
     log_info "All required tools are available!"
     echo
     echo "You can now build with:"
-    echo "  ./build_all_with_ports.sh"
+    echo "  ./build_via_macports_on_mac.sh"
     echo
     exit 0
 else

@@ -515,7 +515,7 @@ resolve_toolchain() {
                 ;;
             aarch64)
                 if [ "$HOST_FAMILY" = "macos" ]; then
-                    prefixes+=("aarch64-elf-" "aarch64-linux-gnu-" "")
+                    prefixes+=("aarch64-none-elf-" "arm-none-eabi-" "aarch64-elf-" "aarch64-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     prefixes+=(
                         "/clangarm64/bin/" "/usr/bin/" "/c/msys64/clangarm64/bin/" "/c/msys64/usr/bin/"

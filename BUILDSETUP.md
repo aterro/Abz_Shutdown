@@ -11,7 +11,7 @@ This project now includes everything needed to build EFI shutdown binaries for m
 ./setup-toolchain.sh
 
 # Build all architectures
-./build_all_with_ports.sh
+./build_via_macports_on_mac.sh
 ```
 
 ### Requirements
@@ -34,7 +34,7 @@ The `bin/` directory contains symlinks to MacPorts cross-compiler tools:
 
 The `setup-toolchain.sh` script creates these symlinks automatically.
 
-### build_all_with_ports.sh
+### build_via_macports_on_mac.sh
 The main build script that:
 - Auto-detects tools in `./bin/`
 - Builds all three EFI binaries in parallel or sequentially
@@ -46,11 +46,11 @@ The main build script that:
 ## Build Options
 
 ```bash
-./build_all_with_ports.sh              # Build x64 + ia32
-./build_all_with_ports.sh x64          # Build x64 only
-./build_all_with_ports.sh ia32         # Build ia32 only
-./build_all_with_ports.sh aa64         # Build aarch64 (if available)
-./build_all_with_ports.sh --help       # Show full help
+./build_via_macports_on_mac.sh              # Build x64 + ia32
+./build_via_macports_on_mac.sh x64          # Build x64 only
+./build_via_macports_on_mac.sh ia32         # Build ia32 only
+./build_via_macports_on_mac.sh aa64         # Build aarch64 (if available)
+./build_via_macports_on_mac.sh --help       # Show full help
 ```
 
 ## Testing on Other Units
@@ -71,7 +71,7 @@ To test on other macOS machines with MacPorts:
 
 3. **Build**:
    ```bash
-   ./build_all_with_ports.sh
+   ./build_via_macports_on_mac.sh
    ```
 
 That's all! No PATH or environment variable setup needed.
@@ -103,7 +103,7 @@ To enable ARM64 builds:
 
 3. Build:
    ```bash
-   ./build_all_with_ports.sh aa64
+   ./build_via_macports_on_mac.sh aa64
    ```
 
 ## File Formats
@@ -143,7 +143,7 @@ which x86_64-elf-gcc
 Follow the "Testing on Other Units" section above - need to:
 1. Install MacPorts tools
 2. Run `./setup-toolchain.sh`
-3. Then `./build_all_with_ports.sh`
+3. Then `./build_via_macports_on_mac.sh`
 
 ## Project Structure
 
@@ -157,9 +157,9 @@ Abz_Shutdown/
 │   ├── i686-elf-gcc
 │   ├── i686-elf-ld
 │   └── i686-w64-mingw32-objcopy
-├── setup-toolchain.sh            # Auto-create symlinks
-├── build_all_with_ports.sh       # Main build script
-├── build_shutdown.sh             # Core build logic
+├── setup-toolchain.sh                # Auto-create symlinks
+├── build_via_macports_on_mac.sh      # Main build script (MacPorts on macOS)
+├── build_shutdown.sh                 # Core build logic
 ├── build_aarch64.sh              # ARM64 specific build
 ├── shutdown.c                    # Source code
 ├── gnuefi/                        # Bundled GNU-EFI

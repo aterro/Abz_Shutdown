@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# build_all_with_ports.sh - Build ABZ_Shutdown for all architectures
-# Usage: ./build_all_with_ports.sh [x64|ia32|aa64|all]
+# build_via_macports_on_mac.sh - Build ABZ_Shutdown for all architectures
+# Usage: ./build_via_macports_on_mac.sh [x64|ia32|aa64|all]
 #
 # ================================================================================
 # TOOLS (Bundled in ./bin/)

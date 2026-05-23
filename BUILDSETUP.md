@@ -86,25 +86,7 @@ That's all! No PATH or environment variable setup needed.
 
 ### Adding aarch64 Support
 
-To enable ARM64 builds:
-
-1. Download ARM GNU Toolchain for macOS:
-   - Intel Mac: `arm-gnu-toolchain-15.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
-   - Apple Silicon: `arm-gnu-toolchain-15.2.rel1-darwin-arm64-aarch64-none-elf.tar.xz`
-   
-   From: https://developer.arm.com/downloads/-/gnu-a
-
-2. Extract and symlink:
-   ```bash
-   tar xf arm-gnu-toolchain-15.2.rel1-darwin-*-aarch64-none-elf.tar.xz
-   cd bin/
-   ln -s /path/to/extracted/bin/aarch64-none-elf-* ./
-   ```
-
-3. Build:
-   ```bash
-   ./build_via_macports_on_mac.sh aa64
-   ```
+To enable ARM64 builds, see [Macports.md](./Macports.md) for detailed instructions and version compatibility notes.
 
 ## File Formats
 
@@ -150,13 +132,14 @@ Follow the "Testing on Other Units" section above - need to:
 ```
 Abz_Shutdown/
 ├── bin/                          # Symlinks to cross-compiler tools
-│   ├── README.md                 # Toolchain documentation
 │   ├── x86_64-elf-gcc → /opt/local/bin/...
 │   ├── x86_64-elf-ld
 │   ├── x86_64-w64-mingw32-objcopy
 │   ├── i686-elf-gcc
 │   ├── i686-elf-ld
-│   └── i686-w64-mingw32-objcopy
+│   ├── i686-w64-mingw32-objcopy
+│   └── aarch64-none-elf-* (optional)
+├── Macports.md                   # MacPorts toolchain setup guide
 ├── setup-toolchain.sh                # Auto-create symlinks
 ├── build_via_macports_on_mac.sh      # Main build script (MacPorts on macOS)
 ├── build_shutdown.sh                 # Core build logic

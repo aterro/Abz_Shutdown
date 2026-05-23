@@ -1,6 +1,6 @@
-# Cross-Compiler Toolchain for ABZ_Shutdown
+# MacPorts Toolchain Setup for ABZ_Shutdown
 
-This directory contains **symlinks** to the cross-compiler tools needed to build ABZ_Shutdown EFI binaries for multiple architectures.
+This guide covers setting up cross-compiler tools for building ABZ_Shutdown EFI binaries using MacPorts on macOS.
 
 ## Setup
 
@@ -51,15 +51,20 @@ ln -s /opt/local/bin/i686-w64-mingw32-objcopy .
 
 ### aarch64 (ARM 64-bit) - OPTIONAL
 
-aarch64 support is **not available** through MacPorts as of now. To build for aarch64:
+aarch64 support requires a C compiler. MacPorts provides `aarch64-elf-binutils` but **not** `aarch64-elf-gcc`. To build for aarch64:
 
-1. Download the ARM GNU Toolchain for your platform from https://developer.arm.com/downloads/-/gnu-a:
-   - **macOS (Intel):** `arm-gnu-toolchain-15.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
+**Option 1: Use ARM GNU Toolchain (Recommended)**
+
+1. Download the ARM GNU Toolchain for your platform from https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads:
+   - **macOS (Intel) 10.15 Catalina or later:** `arm-gnu-toolchain-11.3.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
+   https://developer.arm.com/-/media/Files/downloads/gnu/11.3.rel1/binrel/arm-gnu-toolchain-11.3.rel1-darwin-x86_64-aarch64-none-elf.tar.xz
+   - **macOS (Intel) 12 Monterey or later:** `arm-gnu-toolchain-12.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
+   https://developer.arm.com/-/media/Files/downloads/gnu/12.2.rel1/binrel/arm-gnu-toolchain-12.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz
    - **macOS (Apple Silicon):** `arm-gnu-toolchain-15.2.rel1-darwin-arm64-aarch64-none-elf.tar.xz`
 
 2. Extract and create symlinks:
    ```bash
-   tar xf arm-gnu-toolchain-15.2.rel1-darwin-*-aarch64-none-elf.tar.xz
+   tar xf arm-gnu-toolchain-11.3.rel1-darwin-x86_64-aarch64-none-elf.tar.xz
    cd bin/
    ln -s /path/to/extracted/bin/aarch64-none-elf-gcc .
    ln -s /path/to/extracted/bin/aarch64-none-elf-ld .
@@ -70,7 +75,11 @@ aarch64 support is **not available** through MacPorts as of now. To build for aa
 
 3. The build script will auto-detect and use these tools.
 
-**Note:** MacPorts provides `aarch64-elf-binutils` but not `aarch64-elf-gcc`. The `arm-none-eabi-` toolchain is for 32-bit ARM, not 64-bit ARM (aarch64).
+**Option 2: Use MacPorts Binutils Only (Binutils Only - No Compiler)**
+
+MacPorts provides `aarch64-elf-binutils` which includes `aarch64-elf-objcopy`, `aarch64-elf-ld`, `aarch64-elf-ar`, and `aarch64-elf-ranlib`. However, without a compiler (`aarch64-elf-gcc`), you can only link pre-compiled objects, not compile C code. This is insufficient for ABZ_Shutdown which requires compilation from source.
+
+**Note:** MacPorts provides `aarch64-elf-binutils` but not `aarch64-elf-gcc`. The `arm-none-eabi-` toolchain is for 32-bit ARM, not 64-bit ARM (aarch64). All ARM's prebuilt aarch64 toolchains require at least macOS 10.15 Catalina. macOS High Sierra (10.13) users must either upgrade, use Linux, or build the toolchain from source.
 
 ## About mingw32 objcopy
 

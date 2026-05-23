@@ -95,7 +95,7 @@ The batch wrapper uses **smart toolchain detection** to find the fastest working
 - Results in first-try success instead of multiple failed attempts
 
 #### macOS
-Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md).
+Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md) or [Macports.md](Macports.md) for macOS-specific setup with MacPorts.
 
 **Requirements on Linux:**
 - `build-essential`

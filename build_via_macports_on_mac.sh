@@ -12,7 +12,7 @@
 #
 # Bundled tools:
 #   x86_64:   x86_64-elf-gcc, x86_64-elf-ld, x86_64-w64-mingw32-objcopy
-#   ia32:     i686-elf-gcc, i686-elf-ld, i686-w64-mingw32-objcopy  
+#   ia32:     i386-elf-gcc, i386-elf-ld, i386-w64-mingw32-objcopy  
 #   aarch64:  aarch64-none-elf-gcc, aarch64-none-elf-ld, aarch64-none-elf-objcopy
 #
 # Tool source:
@@ -59,8 +59,7 @@ log_section() {
 
 check_bundled_tools() {
     local required_tools=("x86_64-elf-gcc" "x86_64-elf-ld" "x86_64-w64-mingw32-objcopy" \
-                         "i686-elf-gcc" "i686-elf-ld" "i686-w64-mingw32-objcopy")
-    local optional_tools=("aarch64-none-elf-gcc" "aarch64-elf-gcc")
+                         "i386-elf-gcc" "i386-elf-ld" "i386-w64-mingw32-objcopy")
     local missing=()
     local has_aarch64=0
 
@@ -70,7 +69,7 @@ check_bundled_tools() {
         fi
     done
 
-    # Check for aarch64 tools
+    # Check for aarch64 tools (optional)
     if [ -x "$TOOLCHAIN_BIN/aarch64-none-elf-gcc" ]; then
         has_aarch64=1
         export AARCH64_PREFIX="aarch64-none-elf"
@@ -81,6 +80,62 @@ check_bundled_tools() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         log_error "Missing required tools in $TOOLCHAIN_BIN: ${missing[*]}"
+
+        # Suggest MacPorts packages to install (aggregate by architecture/toolset)
+        local pkgs=()
+        if printf '%s\n' "${missing[@]}" | grep -q 'x86_64-elf'; then
+            pkgs+=("x86_64-elf-gcc")
+        fi
+        if printf '%s\n' "${missing[@]}" | grep -q 'i386-elf'; then
+            pkgs+=("i386-elf-gcc")
+        fi
+        if printf '%s\n' "${missing[@]}" | grep -q 'x86_64-w64-mingw32'; then
+            pkgs+=("x86_64-w64-mingw32-binutils")
+        fi
+        if printf '%s\n' "${missing[@]}" | grep -q 'i386-w64-mingw32'; then
+            pkgs+=("i686-w64-mingw32-binutils")
+        fi
+
+        # aarch64: MacPorts provides binutils but not gcc. Suggest binutils and recommend ARM GNU Toolchain
+        if [ $has_aarch64 -eq 0 ]; then
+            pkgs+=("aarch64-elf-binutils")
+            suggest_arm_toolchain=1
+        fi
+
+        # Deduplicate package list
+        unique_pkgs=()
+        for p in "${pkgs[@]}"; do
+            found=0
+            for q in "${unique_pkgs[@]:-}"; do
+                if [ "$q" = "$p" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                unique_pkgs+=("$p")
+            fi
+        done
+
+        if [ ${#unique_pkgs[@]} -gt 0 ]; then
+            log_info "Install missing tools via MacPorts (run as root):"
+            echo "  sudo port install ${unique_pkgs[*]}" | tee -a "$BUILD_LOG"
+            log_info "Then run: ./setup-toolchain.sh && ./build_via_macports_on_mac.sh"
+
+            if [ "${suggest_arm_toolchain:-0}" -eq 1 ]; then
+                log_info "Note on aarch64: MacPorts provides aarch64 binutils but not aarch64 GCC."
+                log_info "Recommended: download ARM GNU Toolchain and symlink its aarch64-* tools into ./bin/:"
+                echo "  https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads" | tee -a "$BUILD_LOG"
+                echo "Examples:" | tee -a "$BUILD_LOG"
+                echo "  macOS (Intel): arm-gnu-toolchain-11.3.rel1-darwin-x86_64-aarch64-none-elf.tar.xz" | tee -a "$BUILD_LOG"
+                echo "  macOS (Intel newer): arm-gnu-toolchain-12.2.rel1-darwin-x86_64-aarch64-none-elf.tar.xz" | tee -a "$BUILD_LOG"
+                echo "  macOS (Apple Silicon): arm-gnu-toolchain-15.2.rel1-darwin-arm64-aarch64-none-elf.tar.xz" | tee -a "$BUILD_LOG"
+                echo "After extracting, cd into the extracted 'bin/' and ln -sf <tool> $TOOLCHAIN_BIN/ to make tools available." | tee -a "$BUILD_LOG"
+            fi
+        else
+            log_info "No obvious MacPorts package mapping for the missing tools. See Macports.md for manual instructions."
+        fi
+
         log_error "Bundled toolchain is incomplete."
         return 1
     fi
@@ -112,7 +167,7 @@ build_ia32() {
     log_section "Building ia32 (i386)"
 
     cd "$PROJECT_DIR"
-    if OBJCOPY=i686-w64-mingw32-objcopy ./build_shutdown.sh ia32 2>&1 | tee -a "$BUILD_LOG"; then
+    if OBJCOPY=i386-w64-mingw32-objcopy ./build_shutdown.sh ia32 2>&1 | tee -a "$BUILD_LOG"; then
         log_info "✓ ia32 build successful"
         [ -f "ABZ_Shutdown_ia32.efi" ] && log_info "Output: ABZ_Shutdown_ia32.efi ($(stat -f%z 'ABZ_Shutdown_ia32.efi' 2>/dev/null))"
         return 0
@@ -175,7 +230,7 @@ three architectures. No external tools or package managers needed!
 
 Included toolchains:
   • x86_64 (x86_64-elf-gcc): 64-bit x86 EFI
-  • ia32 (i686-elf-gcc): 32-bit x86 EFI
+  • ia32 (i386-elf-gcc): 32-bit x86 EFI
   • aarch64 (aarch64-none-elf-gcc): ARM 64-bit EFI
 
 The build produces three PE/COFF EFI binaries:
@@ -184,7 +239,7 @@ The build produces three PE/COFF EFI binaries:
   • ABZ_Shutdown_aa64.efi  (ARM 64-bit architecture)
 
 Note on objcopy:
-  The mingw binutils (x86_64-w64-mingw32-objcopy, i686-w64-mingw32-objcopy)
+  The mingw binutils (x86_64-w64-mingw32-objcopy, i386-w64-mingw32-objcopy)
   are used for PE/COFF format conversion to EFI. These provide the PE format
   support that standard ELF objcopy tools lack.
 

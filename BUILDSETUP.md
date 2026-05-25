@@ -19,7 +19,9 @@ This project now includes everything needed to build EFI shutdown binaries for m
 You need **MacPorts** installed with:
 
 ```bash
-sudo port install x86_64-elf-gcc i686-elf-gcc \
+# Recommended MacPorts packages (installs compilers and mingw binutils)
+sudo port install x86_64-elf-gcc x86_64-w64-mingw32-binutils   i686-w64-mingw32-gcc i686-w64-mingw32-binutils aarch64-elf-binutils
+x86_64-elf-gcc i686-elf-gcc \
   x86_64-w64-mingw32-binutils i686-w64-mingw32-binutils
 ```
 

@@ -9,8 +9,11 @@ This guide covers setting up cross-compiler tools for building ABZ_Shutdown EFI 
 You need MacPorts installed with the following tools:
 
 ```bash
-sudo port install x86_64-elf-gcc i686-elf-gcc \
-  x86_64-w64-mingw32-binutils i686-w64-mingw32-binutils
+# Recommended MacPorts packages (installs compilers and mingw binutils)
+sudo port install x86_64-elf-gcc x86_64-w64-mingw32-binutils   i686-w64-mingw32-gcc i686-w64-mingw32-binutils aarch64-elf-binutils
+
+# Note: MacPorts provides aarch64 binutils but not aarch64 GCC. For full aarch64
+# support install ARM GNU Toolchain (see below) or build GCC from source.
 ```
 
 ### Automatic Setup

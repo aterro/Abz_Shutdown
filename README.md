@@ -10,7 +10,11 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ### Linux / macOS and Windows
 ```bash
-./build_shutdown.sh and ./build_shutdown.bat
+./build_shutdown.sh
+```
+### Windows x64 or ia32
+```
+./build_shutdown.bat
 ```
 Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
 

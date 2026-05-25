@@ -16,9 +16,6 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 ```
 ./build_shutdown.bat
 ```
-Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
-
-Bundled GNU-EFI files are included, but Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
 
 ## Overview
 
@@ -58,6 +55,9 @@ The script automatically:
 - Outputs: `ABZ_Shutdown_<arch>.efi`
 
 **Cross-compiling for aarch64** from an x86_64 host is fully supported. The script defaults to `TOOLCHAIN_PREFIX=aarch64-linux-gnu-` and will prompt to install `gcc-aarch64-linux-gnu` + `binutils-aarch64-linux-gnu` if the cross-toolchain is missing.
+Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
+
+Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
 
 ### Platform-Specific
 

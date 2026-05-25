@@ -1,7 +1,5 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-Version: v3.5 — MacPorts dependency management & toolchain automation
-
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
 It's a fix for buggy firmware that restart instead of shutdown using the "reset -s" command such as the B390 series from Asus and others.
@@ -10,19 +8,19 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ## 🚀 Quick Start
 
-### Termux (Android)
-```bash
-cd Abz_Shutdown
-./build_shutdown.sh
-./fix-efi-on-termux.sh
-```
-Bundled GNU-EFI files are included, but Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
-
 ### Linux / macOS and Windows
 ```bash
 ./build_shutdown.sh and ./build_shutdown.bat
 ```
 Falls back to system gnu-efi or see [BUILD_GUIDE.md](BUILD_GUIDE.md) for platform-specific setup.
+
+also on Android phones 
+### Termux (Android)
+```bash
+cd Abz_Shutdown
+./build_shutdown.sh
+```
+Bundled GNU-EFI files are included, but Termux still needs an `objcopy` that supports EFI targets such as `efi-app-x86_64` or `efi-app-aarch64`. Start with `pkg install build-essential`, then check `objcopy --help | grep efi-app`. If that still shows no EFI targets, use the Debian/Ubuntu proot flow in [TERMUX_QUICKSTART.md](TERMUX_QUICKSTART.md).
 
 ## Overview
 

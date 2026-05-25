@@ -4,14 +4,15 @@
 
 This project now includes everything needed to build EFI shutdown binaries for multiple architectures.
 
-### One-Command Setup & Build
+### One-Command Install & Build
 
 ```bash
-# Set up toolchain symlinks (one time)
-./setup-toolchain.sh
+# Install all MacPorts dependencies (one command, requires sudo)
+sudo ./install-macports-dependencies.sh
 
-# Build all architectures
-./build_via_macports_on_mac.sh
+# Or manually step through:
+./setup-toolchain.sh           # Set up toolchain symlinks (one time)
+./build_via_macports_on_mac.sh # Build all architectures
 ```
 
 ### Requirements
@@ -19,10 +20,12 @@ This project now includes everything needed to build EFI shutdown binaries for m
 You need **MacPorts** installed with:
 
 ```bash
-# Recommended MacPorts packages (installs compilers and mingw binutils)
-sudo port install x86_64-elf-gcc x86_64-w64-mingw32-binutils   i686-w64-mingw32-gcc i686-w64-mingw32-binutils aarch64-elf-binutils
-x86_64-elf-gcc i686-elf-gcc \
-  x86_64-w64-mingw32-binutils i686-w64-mingw32-binutils
+# Install all dependencies at once (recommended)
+sudo ./install-macports-dependencies.sh
+
+# Or manually install the required packages:
+sudo port install x86_64-elf-gcc x86_64-w64-mingw32-binutils \
+  i686-w64-mingw32-gcc i686-w64-mingw32-binutils aarch64-elf-binutils
 ```
 
 That's it! No PATH modifications, no complex setup.

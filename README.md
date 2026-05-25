@@ -1,6 +1,6 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-Version: v3.0 — Improved support for old compilers (Windows ia32 toolchains, Python fallback)
+Version: v3.5 — MacPorts dependency management & toolchain automation
 
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
@@ -111,7 +111,27 @@ For aarch64 cross-compilation, also install:
 sudo apt-get install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 ```
 
-**Requirements on macOS:**
+**Requirements on macOS (via MacPorts — recommended):**
+
+MacPorts works on **all macOS versions** (including older systems like High Sierra, Mojave, etc.), unlike Homebrew which requires Catalina or newer.
+
+```bash
+# One-command dependency install
+sudo ./install-macports-dependencies.sh
+
+# Then set up symlinks and build
+./setup-toolchain.sh
+./build_via_macports_on_mac.sh
+```
+
+The `install-macports-dependencies.sh` script handles everything:
+- Runs `port selfupdate` and installs all required cross-compilers and utilities
+- Offers to automatically run the setup and build pipeline after install
+- Safely drops root privileges before running build scripts
+
+See [Macports.md](Macports.md) for full details, including aarch64 ARM GNU Toolchain setup.
+
+**Requirements on macOS (via Homebrew — alternative):**
 - GNU-EFI headers and libraries
 - GNU binutils
 - A matching cross GCC toolchain such as `x86_64-elf-gcc`

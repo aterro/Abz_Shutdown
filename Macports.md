@@ -2,6 +2,20 @@
 
 This guide covers setting up cross-compiler tools for building ABZ_Shutdown EFI binaries using MacPorts on macOS.
 
+MacPorts is the recommended approach for macOS because it supports **all macOS versions** (including older systems like High Sierra, Mojave, etc.), unlike Homebrew which requires Catalina or newer.
+
+## Quick Start (One Command)
+
+```bash
+sudo ./install-macports-dependencies.sh
+```
+
+This single command:
+1. Runs `port selfupdate`
+2. Installs all required cross-compilers and utilities (`mingw-w64`, `x86_64-elf-gcc`, `i386-elf-gcc`, `aarch64-elf-binutils`)
+3. Optionally runs `setup-toolchain.sh` and `build_via_macports_on_mac.sh` after installation
+4. Safely drops root privileges before running build scripts
+
 ## Setup
 
 ### Prerequisites
@@ -23,6 +37,12 @@ From the project root, run the setup script to create all necessary symlinks:
 ```bash
 ./setup-toolchain.sh
 ```
+
+The script interactively:
+- Creates symlinks in `./bin/` for all detected cross-compiler tools
+- Offers to install missing MacPorts packages automatically
+- Offers to download and install ARM GNU Toolchain for aarch64 support
+- Detects tools in both `/opt/local/bin` and system PATH
 
 Or manually from the `bin/` directory:
 

@@ -13,7 +13,17 @@ sudo apt-get update
 sudo apt-get install build-essential gnu-efi
 ```
 
-**macOS**
+**macOS (MacPorts — recommended)**
+```bash
+sudo ./install-macports-dependencies.sh
+./setup-toolchain.sh
+./build_via_macports_on_mac.sh
+```
+
+The `install-macports-dependencies.sh` script handles all dependency installation,
+MacPorts registry update, and offers to run the setup and build pipeline automatically.
+
+**macOS (Homebrew — alternative)**
 ```bash
 brew install binutils x86_64-elf-gcc
 ```

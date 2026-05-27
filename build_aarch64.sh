@@ -349,10 +349,37 @@ resolve_toolchain() {
                 if [ "$HOST_FAMILY" = "macos" ]; then
                     prefixes+=("aarch64-none-elf-" "arm-none-eabi-" "aarch64-elf-" "aarch64-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
-                    prefixes+=(
-                        "/clangarm64/bin/" "/usr/bin/" "/c/msys64/clangarm64/bin/" "/c/msys64/usr/bin/"
-                        "" "aarch64-linux-gnu-" "aarch64-elf-"
-                    )
+                    # On Windows, aarch64 cross-compilation requires LLVM/clang (GCC prefixes won't work).
+                    # Try LLVM toolchain directly using env vars from the batch file or common paths.
+                    local _llvm_dirs=()
+                    [ -n "${LLVM_PREFIX:-}" ] && [ -d "$LLVM_PREFIX" ] && _llvm_dirs+=("$LLVM_PREFIX" "$LLVM_PREFIX/bin")
+                    for _d in "/c/LLVM/bin" "/c/Program Files/LLVM/bin"; do
+                        [ -d "$_d" ] && _llvm_dirs+=("$_d")
+                    done
+                    if command -v clang >/dev/null 2>&1; then
+                        _llvm_dirs+=("$(dirname "$(command -v clang)")")
+                    fi
+                    for _dir in "${_llvm_dirs[@]}"; do
+                        local _cc="${LLVM_CC:-$_dir/clang}"
+                        local _ld="${LLVM_LD:-$_dir/ld.lld}"
+                        local _oc="${LLVM_OBJCOPY:-$_dir/llvm-objcopy}"
+                        local _ar="${LLVM_AR:-$_dir/llvm-ar}"
+                        local _rl="${LLVM_RANLIB:-$_dir/llvm-ranlib}"
+                        if tool_exists "$_cc" && tool_exists "$_ld" &&
+                           tool_exists "$_oc" && tool_exists "$_ar" && tool_exists "$_rl"; then
+                            CC="$_cc"; LD="$_ld"; OBJCOPY="$_oc"; AR="$_ar"; RANLIB="$_rl"
+                            CROSS_CLANG=1
+                            log_info "Using LLVM/LLD toolchain at $_dir"
+                            break
+                        fi
+                    done
+                    # Also try GCC prefixes (for systems with aarch64 GCC installed)
+                    if [ -z "$CC" ]; then
+                        prefixes+=(
+                            "/clangarm64/bin/" "/usr/bin/" "/c/msys64/clangarm64/bin/" "/c/msys64/usr/bin/"
+                            "" "aarch64-linux-gnu-" "aarch64-elf-"
+                        )
+                    fi
                 else
                     prefixes+=("" "aarch64-linux-gnu-" "aarch64-elf-")
                 fi
@@ -600,11 +627,12 @@ setup_flags() {
             ;;
     esac
 
-    # When cross-compiling with clang from aarch64 to x86, use --target= instead of -m32/-m64
+    # When cross-compiling with clang, add --target= to produce ELF output for the correct architecture
     if [ "$CROSS_CLANG" = "1" ]; then
         case "$ARCH" in
             x86_64)  CFLAGS+=(--target=x86_64-unknown-elf) ;;
             ia32)    CFLAGS+=(--target=i686-unknown-elf) ;;
+            aarch64) CFLAGS+=(--target=aarch64-unknown-elf) ;;
         esac
     fi
 
@@ -744,7 +772,21 @@ build_binary() {
             log_warn "EFI binary needs format conversion (${filesize} bytes, ELF→PE). Running elf2efi converter..."
             local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             if [ -f "$script_dir/elf2efi.py" ]; then
-                python3 "$script_dir/elf2efi.py" "$shared" "$binary"
+                python3 "$script_dir/elf2efi.py" "$shared" "$binary" ||
+                    python "$script_dir/elf2efi.py" "$shared" "$binary" || {
+                    # On Windows, python may not be in PATH; try common install locations
+                    local _py=""
+                    for _p in /c/Python314/python /c/Python314/python.exe /c/Python3/python /c/Python3/python.exe; do
+                        [ -x "$_p" ] && { _py="$_p"; break; }
+                    done
+                    [ -z "$_py" ] && _py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+                    if [ -n "$_py" ]; then
+                        "$_py" "$script_dir/elf2efi.py" "$shared" "$binary"
+                    else
+                        log_error "python3/python not found; cannot run elf2efi.py"
+                        exit 1
+                    fi
+                }
                 chmod a-x "$binary"
                 log_info "Fix applied: $binary"
             elif [ -f "$script_dir/fix-efi-on-termux.sh" ]; then

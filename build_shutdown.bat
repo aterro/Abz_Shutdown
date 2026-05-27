@@ -31,6 +31,23 @@ if /I "%~1"=="x86_64" (
     )
 )
 
+rem Fast path: if user requested aarch64 AND running on 32-bit Windows, invoke bash with LLVM env vars
+rem (bypasses the aarch64-linux-gnu-gcc libgcc check in :try_bash which fails on ia32 without cross-gcc)
+if /I "%~1"=="aarch64" (
+    if /I "%PROCESSOR_ARCHITECTURE%"=="x86" (
+        for %%I in (bash.exe) do set "PATH_BASH=%%~$PATH:I"
+        if not "%PATH_BASH%"=="" (
+            echo [INFO] Invoking bash directly for aarch64 build on Windows ia32 host...
+            "%PATH_BASH%" -lc "export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd '%UNIX_SCRIPT_DIR%'; ./build_shutdown.sh %BUILD_ARGS%"
+            exit /b %ERRORLEVEL%
+        ) else (
+            echo [INFO] Invoking bash from PATH for aarch64 build on Windows ia32 host...
+            bash -lc "export LLVM_PREFIX=/c/LLVM; export LLVM_CC=/c/LLVM/bin/clang; export LLVM_LD=/c/LLVM/bin/ld.lld; export LLVM_OBJCOPY=/c/LLVM/bin/llvm-objcopy; export LLVM_AR=/c/LLVM/bin/llvm-ar; export LLVM_RANLIB=/c/LLVM/bin/llvm-ranlib; cd '%UNIX_SCRIPT_DIR%'; ./build_shutdown.sh %BUILD_ARGS%"
+            exit /b %ERRORLEVEL%
+        )
+    )
+)
+
 
 rem Prefer not to force LLVM objcopy for ia32 builds (let MSYS2's objcopy be used if present)
 echo %BUILD_ARGS% | findstr /i "ia32" >nul 2>&1
@@ -121,10 +138,15 @@ for %%X in (%BUILD_ARGS%) do (
     if /I "%%X"=="aarch64" set NEED_LIBGCC=1
 )
 if "%NEED_LIBGCC%"=="1" (
-    "%BASH_PATH%" -lc "aarch64-linux-gnu-gcc --print-libgcc-file-name 2>/dev/null" >nul 2>&1
-    if errorlevel 1 (
-        rem Skipping Bash candidate due to missing libgcc for aarch64
-        exit /b 1
+    "%BASH_PATH%" -lc "test -x /c/LLVM/bin/clang" >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] LLVM clang detected; will use LLVM toolchain for aarch64 build
+    ) else (
+        "%BASH_PATH%" -lc "aarch64-linux-gnu-gcc --print-libgcc-file-name 2>/dev/null" >nul 2>&1
+        if errorlevel 1 (
+            rem Skipping Bash candidate due to missing libgcc for aarch64 and no LLVM clang
+            exit /b 1
+        )
     )
 )
 

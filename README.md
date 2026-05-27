@@ -1,6 +1,6 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-Version: v4.0 — Cross-compilation from aarch64/Termux to ia32/x86_64 via clang --target=
+Version: v4.5 — Fixed cross-compilation on Windows ia32 using LLVM
 
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
@@ -18,8 +18,11 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 ```
 Bundled GNU-EFI files are included for all three architectures. On aarch64 Termux, cross-compilation to ia32/x86_64 uses clang's `--target=` flag with `ld.lld` and LLVM tools — no extra packages needed beyond `pkg install build-essential`. The build script auto-detects ELF output and runs `elf2efi.py` to convert it to PE/COFF EFI format.
 ### Windows x64 or ia32
-```
-./build_shutdown.bat
+```bat
+build_shutdown.bat              # native
+build_shutdown.bat x86_64       # 64-bit x86
+build_shutdown.bat ia32         # 32-bit x86
+build_shutdown.bat aarch64      # cross-compile for ARM64 via LLVM
 ```
 
 ## Overview
@@ -156,6 +159,8 @@ The build script checks common MSYS2-style prefixes automatically, including `/u
 
 > **Note for mingw32 environments**: The bundled GNU-EFI libraries are in ELF format, but the mingw32 GCC toolchain produces COFF/PE objects. The build script automatically detects this and switches to an LLVM/clang toolchain (clang, ld.lld, llvm-objcopy) for ELF output if available. Set `LLVM_PREFIX` to the directory containing the LLVM tools if they are in a non-standard location.
 
+> **Note for aarch64 cross-compilation on Windows ia32**: Requires LLVM/clang installed at `C:\LLVM` (or set `LLVM_PREFIX`). The batch file auto-detects LLVM and uses clang with `--target=aarch64-unknown-elf` and `ld.lld` for cross-compilation.
+
 ### Option 2: Using the Makefile (Legacy external-tree build)
 
 If you're building inside a compatible external tree:
@@ -224,6 +229,7 @@ CLEAN_BUILD=1 ./build_shutdown.sh
 
 **Cross-compilation notes:**
 - **aarch64** from x86_64: install `gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu`, or let the script prompt you automatically.
+- **aarch64** from Windows ia32: install [LLVM for Windows](https://github.com/llvm/llvm-project/releases) to `C:\LLVM`, then `build_shutdown.bat aarch64` works automatically.
 - **ia32/x86_64** from aarch64 (Termux): uses clang `--target=` with `ld.lld` and LLVM tools automatically — no extra packages needed.
 - **ia32** on x86_64: native `gcc` with `-m32` is used automatically when the target and host are both x86.
 

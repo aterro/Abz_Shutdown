@@ -1,5 +1,7 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
+Version: v4.0 — Cross-compilation from aarch64/Termux to ia32/x86_64 via clang --target=
+
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
 It's a fix for buggy firmware that restart instead of shutdown using the "reset -s" command such as the B390 series from Asus and others.
@@ -10,8 +12,11 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ### Linux / macOS and Android Termux
 ```bash
-./build_shutdown.sh
+./build_shutdown.sh              # native aarch64
+./build_shutdown.sh ia32         # cross-compile for 32-bit x86
+./build_shutdown.sh x86_64       # cross-compile for 64-bit x86
 ```
+Bundled GNU-EFI files are included for all three architectures. On aarch64 Termux, cross-compilation to ia32/x86_64 uses clang's `--target=` flag with `ld.lld` and LLVM tools — no extra packages needed beyond `pkg install build-essential`. The build script auto-detects ELF output and runs `elf2efi.py` to convert it to PE/COFF EFI format.
 ### Windows x64 or ia32
 ```
 ./build_shutdown.bat
@@ -219,6 +224,7 @@ CLEAN_BUILD=1 ./build_shutdown.sh
 
 **Cross-compilation notes:**
 - **aarch64** from x86_64: install `gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu`, or let the script prompt you automatically.
+- **ia32/x86_64** from aarch64 (Termux): uses clang `--target=` with `ld.lld` and LLVM tools automatically — no extra packages needed.
 - **ia32** on x86_64: native `gcc` with `-m32` is used automatically when the target and host are both x86.
 
 ## Usage

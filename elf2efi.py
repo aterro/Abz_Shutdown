@@ -19,6 +19,7 @@ SECT_CHAR_MASK = {
     'RELOC':0x42000040,  # CNT_INIT_DATA | MEM_READ | MEM_DISCARDABLE
 }
 RELOC_BASE_DIR64 = 0xA
+RELOC_BASE_HIGHLOW = 0x3
 KEEP_SECTIONS = {'.text', '.rodata', '.data', '.dynamic', '.dynsym', '.dynstr'}
 EM_AARCH64 = 183
 EM_X86_64 = 62
@@ -213,10 +214,14 @@ def build_pe(sections_data, reloc_blocks, text_va, entry_va, e_machine):
         num_secs += 1
 
     # Calculate header sizes
+    is_pe32plus = (e_machine != EM_386)
     dos_stub_size = 64
     coff_hdr_off = 64 + dos_stub_size  # 0x80
     opt_hdr_off = coff_hdr_off + 20
-    opt_hdr_size = 112 + 16 * 8  # 240
+    if is_pe32plus:
+        opt_hdr_size = 112 + 16 * 8  # 240 (PE32+)
+    else:
+        opt_hdr_size = 96 + 16 * 8   # 224 (PE32)
     sec_hdrs_off = opt_hdr_off + opt_hdr_size
     raw_hdrs_size = sec_hdrs_off + num_secs * 40
     hdrs_size = align_up(raw_hdrs_size, PE_FILE_ALIGN)
@@ -264,7 +269,7 @@ def build_pe(sections_data, reloc_blocks, text_va, entry_va, e_machine):
     buf += b'\0' * dos_stub_size
 
     # COFF header
-    machine = PE_MACHINE_ARM64 if e_machine == EM_AARCH64 else PE_MACHINE_AMD64
+    machine = PE_MACHINE_ARM64 if e_machine == EM_AARCH64 else (PE_MACHINE_I386 if e_machine == EM_386 else PE_MACHINE_AMD64)
     buf += struct.pack('<HHIIIHH',
         machine,
         num_secs,
@@ -275,50 +280,97 @@ def build_pe(sections_data, reloc_blocks, text_va, entry_va, e_machine):
         0x020E,      # Characteristics
     )
 
-    # Optional header PE32+
-    # Standard fields
-    buf += struct.pack('<HBBIII',
-        0x020B,      # Magic PE32+
-        0,           # MajorLinkerVersion
-        0,           # MinorLinkerVersion
-        0,           # SizeOfCode
-        0,           # SizeOfInitData
-        0,           # SizeOfUninitData
-    )
-    buf += struct.pack('<II',
-        entry_va,    # AddressOfEntryPoint
-        text_va,     # BaseOfCode
-    )
-    # NT additional fields (PE32+)
-    buf += struct.pack('<QIIHHHHHH',
-        PE_IMAGE_BASE,
-        PE_SECTION_ALIGN,
-        PE_FILE_ALIGN,
-        1,           # MajorOSVersion
-        0,           # MinorOSVersion
-        1,           # MajorImageVersion
-        0,           # MinorImageVersion
-        0,           # MajorSubsystemVersion
-        0,           # MinorSubsystemVersion
-    )
-    buf += struct.pack('<IIIIHH',
-        0,           # Win32VersionValue
-        size_of_image,
-        hdrs_size,
-        0,           # CheckSum
-        PE_SUBSYSTEM_EFI_APPLICATION,
-        0,           # DllCharacteristics
-    )
-    buf += struct.pack('<QQQQ',
-        0x100000,    # SizeOfStackReserve
-        0x1000,      # SizeOfStackCommit
-        0x100000,    # SizeOfHeapReserve
-        0x1000,      # SizeOfHeapCommit
-    )
-    buf += struct.pack('<II',
-        0,           # LoaderFlags
-        16,          # NumberOfRvaAndSizes
-    )
+    # Optional header (PE32+ or PE32)
+    if is_pe32plus:
+        # Standard fields
+        buf += struct.pack('<HBBIII',
+            0x020B,      # Magic PE32+
+            0,           # MajorLinkerVersion
+            0,           # MinorLinkerVersion
+            0,           # SizeOfCode
+            0,           # SizeOfInitData
+            0,           # SizeOfUninitData
+        )
+        buf += struct.pack('<II',
+            entry_va,    # AddressOfEntryPoint
+            text_va,     # BaseOfCode
+        )
+        # NT additional fields (PE32+)
+        buf += struct.pack('<QIIHHHHHH',
+            PE_IMAGE_BASE,
+            PE_SECTION_ALIGN,
+            PE_FILE_ALIGN,
+            1,           # MajorOSVersion
+            0,           # MinorOSVersion
+            1,           # MajorImageVersion
+            0,           # MinorImageVersion
+            0,           # MajorSubsystemVersion
+            0,           # MinorSubsystemVersion
+        )
+        buf += struct.pack('<IIIIHH',
+            0,           # Win32VersionValue
+            size_of_image,
+            hdrs_size,
+            0,           # CheckSum
+            PE_SUBSYSTEM_EFI_APPLICATION,
+            0,           # DllCharacteristics
+        )
+        buf += struct.pack('<QQQQ',
+            0x100000,    # SizeOfStackReserve
+            0x1000,      # SizeOfStackCommit
+            0x100000,    # SizeOfHeapReserve
+            0x1000,      # SizeOfHeapCommit
+        )
+        buf += struct.pack('<II',
+            0,           # LoaderFlags
+            16,          # NumberOfRvaAndSizes
+        )
+    else:
+        # PE32 for ia32
+        # Standard fields
+        buf += struct.pack('<HBBIII',
+            0x010B,      # Magic PE32
+            0,           # MajorLinkerVersion
+            0,           # MinorLinkerVersion
+            0,           # SizeOfCode
+            0,           # SizeOfInitData
+            0,           # SizeOfUninitData
+        )
+        buf += struct.pack('<III',
+            entry_va,    # AddressOfEntryPoint
+            text_va,     # BaseOfCode
+            0,           # BaseOfData (PE32 only)
+        )
+        # NT additional fields (PE32)
+        buf += struct.pack('<IIIHHHHHH',
+            PE_IMAGE_BASE,
+            PE_SECTION_ALIGN,
+            PE_FILE_ALIGN,
+            1,           # MajorOSVersion
+            0,           # MinorOSVersion
+            1,           # MajorImageVersion
+            0,           # MinorImageVersion
+            0,           # MajorSubsystemVersion
+            0,           # MinorSubsystemVersion
+        )
+        buf += struct.pack('<IIIIHH',
+            0,           # Win32VersionValue
+            size_of_image,
+            hdrs_size,
+            0,           # CheckSum
+            PE_SUBSYSTEM_EFI_APPLICATION,
+            0,           # DllCharacteristics
+        )
+        buf += struct.pack('<IIII',
+            0x100000,    # SizeOfStackReserve
+            0x1000,      # SizeOfStackCommit
+            0x100000,    # SizeOfHeapReserve
+            0x1000,      # SizeOfHeapCommit
+        )
+        buf += struct.pack('<II',
+            0,           # LoaderFlags
+            16,          # NumberOfRvaAndSizes
+        )
 
     # Data directories (16 entries)
     for i in range(16):
@@ -387,7 +439,8 @@ def main():
             page = reloc_addrs[i] & ~0xFFF
             entries = []
             while i < len(reloc_addrs) and (reloc_addrs[i] & ~0xFFF) == page:
-                entries.append((RELOC_BASE_DIR64 << 12) | (reloc_addrs[i] & 0xFFF))
+                reloc_type = RELOC_BASE_HIGHLOW if e_machine == EM_386 else RELOC_BASE_DIR64
+                entries.append((reloc_type << 12) | (reloc_addrs[i] & 0xFFF))
                 i += 1
             bsize = align_up(8 + len(entries) * 2, 4)
             while len(entries) * 2 + 8 < bsize:

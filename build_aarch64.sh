@@ -19,6 +19,7 @@ HOST_FAMILY="linux"
 ARCH=""
 ARCH_SHORT=""
 GNUEFI_ARCH=""
+CROSS_CLANG=0
 CC="${CC:-}"
 LD="${LD:-}"
 OBJCOPY="${OBJCOPY:-}"
@@ -380,6 +381,40 @@ resolve_toolchain() {
         done
     fi
 
+    # If cross-compiling from aarch64 to x86, native gcc/ld produce aarch64 code.
+    # Switch to clang with --target= and LLVM linker/tools.
+    local _host_m
+    _host_m="$(uname -m)"
+    if [[ "$_host_m" =~ ^(aarch64|arm64)$ ]] && [[ "$ARCH" =~ ^(ia32|x86_64)$ ]]; then
+        if [ -n "$CC" ] && "$CC" --version 2>&1 | grep -qi "clang"; then
+            local _clang_dir
+            _clang_dir="$(dirname "$(command -v "$CC")")"
+            local _new_ld=""
+            for _lld in "$_clang_dir/ld.lld" "$_clang_dir/lld" ld.lld lld; do
+                if tool_exists "$_lld"; then _new_ld="$_lld"; break; fi
+            done
+            if [ -n "$_new_ld" ]; then
+                LD="$_new_ld"
+                for _tn in objcopy ar ranlib; do
+                    for _cand in "$_clang_dir/llvm-$_tn" "llvm-$_tn"; do
+                        if tool_exists "$_cand"; then
+                            case "$_tn" in
+                                objcopy) OBJCOPY="$_cand" ;;
+                                ar)      AR="$_cand" ;;
+                                ranlib)  RANLIB="$_cand" ;;
+                            esac
+                            break
+                        fi
+                    done
+                done
+                CROSS_CLANG=1
+                log_info "Cross-compilation mode: CC=$CC LD=$LD OBJCOPY=$OBJCOPY AR=$AR RANLIB=$RANLIB"
+            else
+                log_warn "ld.lld not found; cross-compilation from aarch64 to $ARCH may fail with native ld"
+            fi
+        fi
+    fi
+
     local required_tools=("$CC" "$LD" "$OBJCOPY" "$AR" "$RANLIB")
     for tool in "${required_tools[@]}"; do
         if [ -z "$tool" ] || ! tool_exists "$tool"; then
@@ -564,23 +599,34 @@ setup_flags() {
             FORMAT="-O pei-aarch64-little --subsystem efi-app"
             ;;
     esac
-    
+
+    # When cross-compiling with clang from aarch64 to x86, use --target= instead of -m32/-m64
+    if [ "$CROSS_CLANG" = "1" ]; then
+        case "$ARCH" in
+            x86_64)  CFLAGS+=(--target=x86_64-unknown-elf) ;;
+            ia32)    CFLAGS+=(--target=i686-unknown-elf) ;;
+        esac
+    fi
+
     # Detect objcopy type - llvm-objcopy doesn't support --target for EFI
     if "$OBJCOPY" --version 2>&1 | grep -q "llvm-objcopy"; then
         FORMAT=""
         log_info "Detected llvm-objcopy (will use default binary conversion)"
     fi
-    
+
     CFLAGS+=(-D__MAKEWITH_GNUEFI)
     ALL_CFLAGS=("${CFLAGS[@]}" "${GNUEFI_CFLAGS[@]}")
-    libgcc_file="$("$CC" --print-libgcc-file-name)"
 
-    if [ ! -f "$libgcc_file" ]; then
-        log_error "Unable to locate libgcc via $CC"
-        exit 1
+    # libgcc is only needed for GCC (ELF cross-compilers provide it; clang ELF targets do not)
+    LIBGCC_FILE=""
+    if "$CC" --version 2>&1 | grep -qi "gcc"; then
+        libgcc_file="$("$CC" --print-libgcc-file-name)"
+        if [ ! -f "$libgcc_file" ]; then
+            log_error "Unable to locate libgcc via $CC"
+            exit 1
+        fi
+        LIBGCC_FILE="$libgcc_file"
     fi
-
-    LIBGCC_FILE="$libgcc_file"
     
     log_info "Compilation flags configured"
 }
@@ -624,8 +670,10 @@ build_binary() {
         z_flags=(-z norelro -z noexecstack -znocombreloc)
     fi
     
+    local _libgcc_arg=()
+    [ -n "$LIBGCC_FILE" ] && _libgcc_arg=("$LIBGCC_FILE")
     "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
-        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "$LIBGCC_FILE" 2>&1 | grep -v "warning:" || true
+        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "${_libgcc_arg[@]}" 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"
@@ -658,14 +706,9 @@ build_binary() {
     fi
     
     if [ ! -f "$binary" ]; then
-        if [ "$ARCH_SHORT" = "aa64" ]; then
-            log_warn "Binary conversion failed, will attempt fix via elf2efi..."
-        else
-            log_error "Binary conversion failed"
-            exit 1
-        fi
+        log_warn "Binary conversion failed, will attempt fix via elf2efi..."
     fi
-    
+
     # Add SBAT section if file and binary exist
     if [ -f "$binary" ] && [ -f "$SBAT_CSV" ]; then
         log_info "Adding SBAT section..."
@@ -681,22 +724,35 @@ build_binary() {
     else
         log_warn "SBAT CSV file not found at $SBAT_CSV (optional)"
     fi
-    
+
     [ -f "$binary" ] && chmod a-x "$binary"
 
-    # Post-build fix for aarch64: if .efi missing or >100KB (likely wrong format from objcopy), use elf2efi
-    if [ "$ARCH_SHORT" = "aa64" ] && [ -f "$shared" ]; then
+    # Post-build fix: if .efi missing, >100KB, or still ELF format, use elf2efi
+    if [ -f "$shared" ]; then
         local filesize=0
+        local need_elf2efi=0
         [ -f "$binary" ] && filesize=$(stat -c%s "$binary" 2>/dev/null || stat -f%z "$binary" 2>/dev/null || wc -c < "$binary" 2>/dev/null || echo 0)
-        if [ ! -f "$binary" ] || [ "$filesize" -gt 102400 ] 2>/dev/null; then
-            log_warn "EFI binary missing or suspicious size (${filesize} bytes). Running fix-efi-on-termux.sh..."
+        [ ! -f "$binary" ] && need_elf2efi=1
+        [ "$filesize" -gt 102400 ] 2>/dev/null && need_elf2efi=1
+        # Check if file is still ELF (not PE/MZ) — llvm-objcopy doesn't convert formats
+        if [ -f "$binary" ] && [ "$need_elf2efi" -eq 0 ]; then
+            local magic
+            magic=$(head -c 2 "$binary" 2>/dev/null || echo "")
+            [ "$magic" != "MZ" ] && need_elf2efi=1
+        fi
+        if [ "$need_elf2efi" -eq 1 ]; then
+            log_warn "EFI binary needs format conversion (${filesize} bytes, ELF→PE). Running elf2efi converter..."
             local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            if [ -f "$script_dir/fix-efi-on-termux.sh" ]; then
+            if [ -f "$script_dir/elf2efi.py" ]; then
+                python3 "$script_dir/elf2efi.py" "$shared" "$binary"
+                chmod a-x "$binary"
+                log_info "Fix applied: $binary"
+            elif [ -f "$script_dir/fix-efi-on-termux.sh" ]; then
                 bash "$script_dir/fix-efi-on-termux.sh" "$shared" "$binary"
                 chmod a-x "$binary"
                 log_info "Fix applied: $binary"
             else
-                log_error "fix-efi-on-termux.sh not found next to the build script"
+                log_error "elf2efi.py / fix-efi-on-termux.sh not found next to the build script"
                 exit 1
             fi
         fi

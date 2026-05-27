@@ -22,8 +22,10 @@ Bundled GNU-EFI files are included for all three architectures. On aarch64 Termu
 build_shutdown.bat              # native
 build_shutdown.bat x86_64       # 64-bit x86
 build_shutdown.bat ia32         # 32-bit x86
-build_shutdown.bat aarch64      # cross-compile for ARM64 via LLVM
+build_shutdown.bat aarch64      # cross-compile for ARM64 via LLVM/clang
 ```
+
+> **Windows ia32 note**: All three architectures (x86_64, ia32, aarch64) can be built on 32-bit Windows. The batch file auto-detects the host and uses LLVM/clang for aarch64 cross-compilation when no GCC cross-toolchain is available. Requires LLVM installed at `C:\LLVM` (or set `LLVM_PREFIX`).
 
 ## Overview
 
@@ -90,13 +92,17 @@ sudo apt-get install build-essential gnu-efi
 
 #### Windows
 ```bat
-build_shutdown.bat
+build_shutdown.bat                  # native architecture
+build_shutdown.bat x86_64           # 64-bit x86
+build_shutdown.bat ia32             # 32-bit x86
+build_shutdown.bat aarch64          # ARM64 via LLVM/clang
 ```
 The batch wrapper uses **smart toolchain detection** to find the fastest working bash environment:
 - Quick tests each environment for required tools (gcc, ld, objcopy) before running the full build
 - Prioritizes MinGW64/UCRT64 variants which have tools in PATH
 - Falls back to WSL when needed
 - Results in first-try success instead of multiple failed attempts
+- **aarch64 on ia32**: Auto-detects LLVM/clang at `C:\LLVM` for cross-compilation (no GCC cross-toolchain needed)
 
 #### macOS
 Requires cross-compilation toolchain. See [BUILD_GUIDE.md](BUILD_GUIDE.md) or [Macports.md](Macports.md) for macOS-specific setup with MacPorts.
@@ -153,7 +159,7 @@ now detects it automatically and will use its built artifacts in preference to a
 - Git Bash, MSYS2 Bash, or WSL
 - GNU-EFI headers and libraries in that environment
 - GCC, `ld`, `objcopy`, `ar`, and `ranlib` (mingw32 toolchain), OR
-- LLVM/clang with `ld.lld`, `llvm-objcopy`, `llvm-ar`, `llvm-ranlib`
+- LLVM/clang with `ld.lld`, `llvm-objcopy`, `llvm-ar`, `llvm-ranlib` (required for aarch64 cross-compilation on ia32)
 
 The build script checks common MSYS2-style prefixes automatically, including `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, `/clangarm64`, and `/c/msys64/*`, and `build_shutdown.bat` can fall through to WSL when that is the usable toolchain.
 
@@ -232,6 +238,11 @@ CLEAN_BUILD=1 ./build_shutdown.sh
 - **aarch64** from Windows ia32: install [LLVM for Windows](https://github.com/llvm/llvm-project/releases) to `C:\LLVM`, then `build_shutdown.bat aarch64` works automatically.
 - **ia32/x86_64** from aarch64 (Termux): uses clang `--target=` with `ld.lld` and LLVM tools automatically — no extra packages needed.
 - **ia32** on x86_64: native `gcc` with `-m32` is used automatically when the target and host are both x86.
+
+## What's New in v4.5
+- Fixed aarch64 cross-compilation on Windows ia32 using LLVM/clang
+- `build_shutdown.bat aarch64` now auto-detects LLVM at `C:\LLVM` and uses `clang --target=aarch64-unknown-elf` with `ld.lld`
+- Added python3 fallback for `elf2efi.py` on Windows (tries `python3`, `python`, then common install paths)
 
 ## Usage
 

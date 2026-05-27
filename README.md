@@ -164,6 +164,8 @@ now detects it automatically and will use its built artifacts in preference to a
 The build script checks common MSYS2-style prefixes automatically, including `/usr`, `/mingw64`, `/ucrt64`, `/clang64`, `/clangarm64`, and `/c/msys64/*`, and `build_shutdown.bat` can fall through to WSL when that is the usable toolchain.
 
 > **Note for mingw32 environments**: The bundled GNU-EFI libraries are in ELF format, but the mingw32 GCC toolchain produces COFF/PE objects. The build script automatically detects this and switches to an LLVM/clang toolchain (clang, ld.lld, llvm-objcopy) for ELF output if available. Set `LLVM_PREFIX` to the directory containing the LLVM tools if they are in a non-standard location.
+>
+> **Note for Windows ia32 aarch64 builds**: `build_shutdown.bat aarch64` uses LLVM/clang with `--target=aarch64-unknown-elf` and `ld.lld` for cross-compilation. Install [LLVM for Windows](https://github.com/llvm/llvm-project/releases) to `C:\LLVM` (default) or set `LLVM_PREFIX` to your LLVM installation directory.
 
 > **Note for aarch64 cross-compilation on Windows ia32**: Requires LLVM/clang installed at `C:\LLVM` (or set `LLVM_PREFIX`). The batch file auto-detects LLVM and uses clang with `--target=aarch64-unknown-elf` and `ld.lld` for cross-compilation.
 

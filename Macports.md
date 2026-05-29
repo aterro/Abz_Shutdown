@@ -26,8 +26,9 @@ You need MacPorts installed with the following tools:
 # Recommended MacPorts packages (installs compilers and mingw binutils)
 sudo port install x86_64-elf-gcc x86_64-w64-mingw32-binutils   i686-w64-mingw32-gcc i686-w64-mingw32-binutils aarch64-elf-binutils
 
-# Note: MacPorts provides aarch64 binutils but not aarch64 GCC. For full aarch64
-# support install ARM GNU Toolchain (see below) or build GCC from source.
+# Note: MacPorts provides aarch64 binutils but not aarch64 GCC.
+# The build script auto-detects clang as a fallback for aarch64 compilation.
+# For GCC-based aarch64 builds, install ARM GNU Toolchain (see below).
 ```
 
 ### Automatic Setup
@@ -74,9 +75,19 @@ ln -s /opt/local/bin/i686-w64-mingw32-objcopy .
 
 ### aarch64 (ARM 64-bit) - OPTIONAL
 
-aarch64 support requires a C compiler. MacPorts provides `aarch64-elf-binutils` but **not** `aarch64-elf-gcc`. To build for aarch64:
+aarch64 support requires a C compiler. MacPorts provides `aarch64-elf-binutils` (linker, objcopy, ar, ranlib) but **not** `aarch64-elf-gcc`. To build for aarch64:
 
-**Option 1: Use ARM GNU Toolchain (Recommended)**
+**Option 1: Use clang (Automatic — works on all macOS versions)**
+
+The build script automatically falls back to Apple Clang (`clang --target=aarch64-unknown-elf`) with MacPorts `aarch64-elf-*` binutils when no GCC cross-compiler is found. No extra setup needed — just run:
+
+```bash
+./build_shutdown.sh aarch64
+```
+
+Requires `aarch64-elf-binutils` installed via MacPorts (included in the dependency installer).
+
+**Option 2: Use ARM GNU Toolchain (GCC-based)**
 
 1. Download the ARM GNU Toolchain for your platform from https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads:
    - **macOS (Intel) 10.15 Catalina or later:** `arm-gnu-toolchain-11.3.rel1-darwin-x86_64-aarch64-none-elf.tar.xz`
@@ -100,9 +111,9 @@ aarch64 support requires a C compiler. MacPorts provides `aarch64-elf-binutils` 
 
 **Option 2: Use MacPorts Binutils Only (Binutils Only - No Compiler)**
 
-MacPorts provides `aarch64-elf-binutils` which includes `aarch64-elf-objcopy`, `aarch64-elf-ld`, `aarch64-elf-ar`, and `aarch64-elf-ranlib`. However, without a compiler (`aarch64-elf-gcc`), you can only link pre-compiled objects, not compile C code. This is insufficient for ABZ_Shutdown which requires compilation from source.
+MacPorts provides `aarch64-elf-binutils` which includes `aarch64-elf-objcopy`, `aarch64-elf-ld`, `aarch64-elf-ar`, and `aarch64-elf-ranlib`. Combined with Apple Clang as the compiler, this is sufficient for building aarch64 EFI binaries on any macOS version.
 
-**Note:** MacPorts provides `aarch64-elf-binutils` but not `aarch64-elf-gcc`. The `arm-none-eabi-` toolchain is for 32-bit ARM, not 64-bit ARM (aarch64). All ARM's prebuilt aarch64 toolchains require at least macOS 10.15 Catalina. macOS High Sierra (10.13) users must either upgrade, use Linux, or build the toolchain from source.
+**Note:** The `arm-none-eabi-` toolchain is for 32-bit ARM, not 64-bit ARM (aarch64). ARM's prebuilt GCC toolchains require at least macOS 10.15 Catalina. On older macOS versions, the clang fallback (Option 1) is the recommended approach.
 
 ## About mingw32 objcopy
 

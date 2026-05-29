@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## v5.0 — macOS aarch64 clang fallback & toolchain fixes (2026-05-29)
+
+- **macOS aarch64 builds now work with clang**: when no aarch64 GCC cross-compiler is found, the build script auto-detects `clang --target=aarch64-unknown-elf` with MacPorts `aarch64-elf-*` binutils as a complete fallback toolchain
+- **Fixed x86_64/ia32 macOS builds**: `resolve_objcopy_format()` now searches for `x86_64-w64-mingw32-objcopy` and `i686-w64-mingw32-objcopy` which support PEI targets, matching the behavior of `build_via_macports_on_mac.sh`
+- **Removed invalid `arm-none-eabi-` prefix** from aarch64 candidate lists in both `build_shutdown.sh` and `build_aarch64.sh` — this 32-bit ARM toolchain cannot handle aarch64 and caused incorrect toolchain selection
+- **Fixed empty array expansion crash**: `${_libgcc_arg[@]}` and `${z_flags[@]}` now use `${var[@]+"${var[@]}"}` pattern to avoid `unbound variable` errors under `set -u`
+- **Added `llvm-17`** to `install-macports-dependencies.sh` for LLVM tools (llvm-ar, llvm-objcopy, llvm-ranlib)
+- **Updated `setup-toolchain.sh`**: aarch64 tool candidates now include `clang`/`ld.lld`/`llvm-*` as fallbacks, plus `llvm-17` suggestion when LLVM tools are missing
+
+See Macports.md for the full macOS setup guide.
+
 ## v3.5 — MacPorts dependency management & toolchain automation (2026-05-25)
 
 - **New `install-macports-dependencies.sh`**: one-command MacPorts dependency installer with:

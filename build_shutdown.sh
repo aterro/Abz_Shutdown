@@ -154,7 +154,7 @@ resolve_objcopy_format() {
 
     log_warn "$OBJCOPY lacks $bfd_target support, searching for alternative objcopy..."
     local alt
-    for alt in x86_64-elf-objcopy aarch64-elf-objcopy; do
+    for alt in x86_64-w64-mingw32-objcopy i686-w64-mingw32-objcopy i386-w64-mingw32-objcopy x86_64-elf-objcopy aarch64-elf-objcopy; do
         if tool_exists "$alt" && "$alt" --help 2>&1 | grep "supported targets:" | grep -q "$bfd_target"; then
             OBJCOPY="$alt"
             log_info "Using alternative objcopy: $OBJCOPY"
@@ -490,7 +490,7 @@ resolve_toolchain() {
         case "$ARCH" in
             x86_64)
                 if [ "$HOST_FAMILY" = "macos" ]; then
-                    prefixes+=("x86_64-elf-" "x86_64-linux-gnu-" "")
+                    prefixes+=("x86_64-elf-" "x86_64-w64-mingw32-" "x86_64-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     prefixes+=(
                         "/mingw64/bin/" "/ucrt64/bin/" "/clang64/bin/" "/usr/bin/"
@@ -503,7 +503,7 @@ resolve_toolchain() {
                 ;;
             ia32)
                 if [ "$HOST_FAMILY" = "macos" ]; then
-                    prefixes+=("i686-elf-" "i686-linux-gnu-" "")
+                    prefixes+=("i686-elf-" "i686-w64-mingw32-" "i386-w64-mingw32-" "i686-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     prefixes+=(
                         "/mingw32/bin/" "/usr/bin/" "/c/msys64/mingw32/bin/" "/c/msys64/usr/bin/"
@@ -515,7 +515,7 @@ resolve_toolchain() {
                 ;;
             aarch64)
                 if [ "$HOST_FAMILY" = "macos" ]; then
-                    prefixes+=("aarch64-none-elf-" "arm-none-eabi-" "aarch64-elf-" "aarch64-linux-gnu-" "")
+                    prefixes+=("aarch64-none-elf-" "aarch64-elf-" "aarch64-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     prefixes+=(
                         "/clangarm64/bin/" "/usr/bin/" "/c/msys64/clangarm64/bin/" "/c/msys64/usr/bin/"

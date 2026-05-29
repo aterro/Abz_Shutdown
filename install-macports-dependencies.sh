@@ -38,7 +38,9 @@ log_info "Updating MacPorts registry packages..."
 port selfupdate
 
 log_info "Installing toolchain cross-compilers and utilities..."
-port install mingw-w64 x86_64-elf-gcc i386-elf-gcc aarch64-elf-binutils
+# Note: aarch64-elf-gcc is not available in MacPorts; clang is used as fallback on macOS
+# INFO: Install llvm-17 for ld.lld, llvm-objcopy, llvm-ar, llvm-ranlib (needed for clang aarch64 fallback)
+port install mingw-w64 x86_64-elf-gcc i386-elf-gcc aarch64-elf-binutils llvm-17
 
 log_info "All MacPorts package dependencies successfully installed!"
 echo

@@ -1,6 +1,6 @@
 # ABZ_Shutdown.efi - ACPI Shutdown EFI Application
 
-Version: v4.5 — Fixed cross-compilation on Windows ia32 using LLVM
+Version: v5.0 — macOS aarch64 clang fallback & toolchain fixes
 
 This directory contains the source code and build files for `ABZ_Shutdown.efi`, a **standalone UEFI application** that performs system shutdown via ACPI and can build on Linux, macOS, Windows, and Termux.
 
@@ -240,6 +240,15 @@ CLEAN_BUILD=1 ./build_shutdown.sh
 - **aarch64** from Windows ia32: install [LLVM for Windows](https://github.com/llvm/llvm-project/releases) to `C:\LLVM`, then `build_shutdown.bat aarch64` works automatically.
 - **ia32/x86_64** from aarch64 (Termux): uses clang `--target=` with `ld.lld` and LLVM tools automatically — no extra packages needed.
 - **ia32** on x86_64: native `gcc` with `-m32` is used automatically when the target and host are both x86.
+
+## What's New in v5.0
+- macOS aarch64 build now works out of the box using clang + MacPorts binutils (no GCC cross-compiler needed)
+- Clang fallback for aarch64: auto-detects `clang --target=aarch64-unknown-elf` with `aarch64-elf-ld/objcopy/ar/ranlib` when no aarch64 GCC is found
+- Fixed x86_64/ia32 macOS builds: `resolve_objcopy_format()` now finds `x86_64-w64-mingw32-objcopy` for PEI target support
+- Removed invalid `arm-none-eabi-` prefix from aarch64 candidate lists (32-bit toolchain can't handle aarch64)
+- Fixed empty array expansion crash with `set -u` (nounset) in link step
+- Added `llvm-17` to MacPorts dependency installer
+- Updated `setup-toolchain.sh` with clang/LLVM fallback candidates for aarch64
 
 ## What's New in v4.5
 - Fixed aarch64 cross-compilation on Windows ia32 using LLVM/clang

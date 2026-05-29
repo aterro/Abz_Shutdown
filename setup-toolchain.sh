@@ -100,11 +100,11 @@ CANDIDATES=(
   "i386-elf-gcc i386-elf-gcc-* i686-w64-mingw32-gcc"
   "i386-elf-ld i386-elf-ld.bfd i686-w64-mingw32-ld"
   "i386-w64-mingw32-objcopy i386-elf-objcopy"
-  "aarch64-none-elf-gcc aarch64-elf-gcc"
-  "aarch64-none-elf-ld aarch64-elf-ld"
-  "aarch64-none-elf-objcopy aarch64-elf-objcopy"
-  "aarch64-none-elf-ar aarch64-elf-ar"
-  "aarch64-none-elf-ranlib aarch64-elf-ranlib"
+  "aarch64-none-elf-gcc aarch64-elf-gcc clang"
+  "aarch64-none-elf-ld aarch64-elf-ld ld.lld"
+  "aarch64-none-elf-objcopy aarch64-elf-objcopy llvm-objcopy"
+  "aarch64-none-elf-ar aarch64-elf-ar llvm-ar"
+  "aarch64-none-elf-ranlib aarch64-elf-ranlib llvm-ranlib"
   "aarch64-none-elf-as aarch64-elf-as"
   "aarch64-none-elf-nm aarch64-elf-nm"
   "aarch64-none-elf-size aarch64-elf-size"
@@ -173,6 +173,10 @@ fi
 # aarch64 binutils
 if ! [ -x "$MACPORTS_BIN/aarch64-elf-objcopy" ] && ! command -v aarch64-none-elf-objcopy >/dev/null 2>&1; then
   suggested+=("aarch64-elf-binutils")
+fi
+# llvm tools (needed for clang aarch64 fallback: ld.lld, llvm-objcopy, llvm-ar, llvm-ranlib)
+if ! command -v ld.lld >/dev/null 2>&1 && ! command -v ld.lld-mp-17 >/dev/null 2>&1; then
+  suggested+=("llvm-17")
 fi
 
 # Deduplicate

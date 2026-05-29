@@ -210,8 +210,8 @@ Total time: ~8 minutes
 
 ---
 
-**Version**: 1.0
+**Version**: 5.0
 **Status**: ✅ Production Ready
-**Last Updated**: 2026-05-04
+**Last Updated**: 2026-05-29
 
 Start with `BUILD_GUIDE.md` →

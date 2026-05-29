@@ -347,7 +347,7 @@ resolve_toolchain() {
                 ;;
             aarch64)
                 if [ "$HOST_FAMILY" = "macos" ]; then
-                    prefixes+=("aarch64-none-elf-" "arm-none-eabi-" "aarch64-elf-" "aarch64-linux-gnu-" "")
+                    prefixes+=("aarch64-none-elf-" "aarch64-elf-" "aarch64-linux-gnu-" "")
                 elif [ "$HOST_FAMILY" = "windows" ]; then
                     # On Windows, aarch64 cross-compilation requires LLVM/clang (GCC prefixes won't work).
                     # Try LLVM toolchain directly using env vars from the batch file or common paths.
@@ -406,6 +406,35 @@ resolve_toolchain() {
                 break
             fi
         done
+    fi
+
+    # macOS fallback: if no GCC cross-compiler found, try clang + LLVM tools
+    if [ -z "$CC" ] && [ "$HOST_FAMILY" = "macos" ] && [ "$ARCH" = "aarch64" ]; then
+        local _clang_cc=""
+        local _clang_dir=""
+        for _c in clang /opt/local/bin/clang; do
+            if tool_exists "$_c"; then _clang_cc="$_c"; _clang_dir="$(dirname "$(command -v "$_c")")"; break; fi
+        done
+        if [ -n "$_clang_cc" ]; then
+            local _lld="" _oc="" _ar="" _rl=""
+            for _cand in aarch64-elf-ld aarch64-none-elf-ld "$_clang_dir/ld.lld" "$_clang_dir/lld" ld.lld lld; do
+                if tool_exists "$_cand"; then _lld="$_cand"; break; fi
+            done
+            for _cand in aarch64-elf-objcopy aarch64-none-elf-objcopy "$_clang_dir/llvm-objcopy" "$_clang_dir/llvm-objcopy-mp-"* llvm-objcopy; do
+                if tool_exists "$_cand"; then _oc="$_cand"; break; fi
+            done
+            for _cand in aarch64-elf-ar aarch64-none-elf-ar "$_clang_dir/llvm-ar" "$_clang_dir/llvm-ar-mp-"* llvm-ar; do
+                if tool_exists "$_cand"; then _ar="$_cand"; break; fi
+            done
+            for _cand in aarch64-elf-ranlib aarch64-none-elf-ranlib "$_clang_dir/llvm-ranlib" "$_clang_dir/llvm-ranlib-mp-"* llvm-ranlib; do
+                if tool_exists "$_cand"; then _rl="$_cand"; break; fi
+            done
+            if [ -n "$_lld" ] && [ -n "$_oc" ] && [ -n "$_ar" ] && [ -n "$_rl" ]; then
+                CC="$_clang_cc"; LD="$_lld"; OBJCOPY="$_oc"; AR="$_ar"; RANLIB="$_rl"
+                CROSS_CLANG=1
+                log_info "Using clang + LLVM tools as fallback for aarch64 cross-compilation"
+            fi
+        fi
     fi
 
     # If cross-compiling from aarch64 to x86, native gcc/ld produce aarch64 code.
@@ -700,8 +729,8 @@ build_binary() {
     
     local _libgcc_arg=()
     [ -n "$LIBGCC_FILE" ] && _libgcc_arg=("$LIBGCC_FILE")
-    "$LD" "${ld_flags[@]}" "${z_flags[@]}" "$CRT0" "$object" -o "$shared" \
-        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" "${_libgcc_arg[@]}" 2>&1 | grep -v "warning:" || true
+    "$LD" "${ld_flags[@]}" ${z_flags[@]+"${z_flags[@]}"} "$CRT0" "$object" -o "$shared" \
+        "$GNUEFI_LIBEFI_A" "$GNUEFI_LIBGNUEFI_A" ${_libgcc_arg[@]+"${_libgcc_arg[@]}"} 2>&1 | grep -v "warning:" || true
     
     if [ ! -f "$shared" ]; then
         log_error "Linking failed"

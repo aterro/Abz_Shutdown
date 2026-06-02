@@ -51,11 +51,17 @@ The main build script that:
 ## Build Options
 
 ```bash
-./build_via_macports_on_mac.sh              # Build x64 + ia32
-./build_via_macports_on_mac.sh x64          # Build x64 only
-./build_via_macports_on_mac.sh ia32         # Build ia32 only
-./build_via_macports_on_mac.sh aa64         # Build aarch64 (if available)
-./build_via_macports_on_mac.sh --help       # Show full help
+# Build all architectures in sequence (recommended)
+./build_all.sh                     # Wrapper that runs all builds for x64, ia32, and aarch64 (if available)
+
+# Build individual architectures
+./build_shutdown.sh                # Native architecture (detected automatically)
+./build_shutdown.sh x64            # Build x64 only
+./build_shutdown.sh ia32           # Build 32-bit x86 only
+./build_shutdown.sh aarch64        # Build aarch64 (if toolchain installed)
+
+# Show help for available options
+./build_shutdown.sh --help
 ```
 
 ## Testing on Other Units

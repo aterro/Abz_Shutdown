@@ -12,6 +12,7 @@ The code inside shutdown.c was borrowed from grub2fm halt.c and can be used to f
 
 ### Linux / macOS and Android Termux
 ```bash
+./build_all.sh              # Build all architectures in sequence
 ./build_shutdown.sh              # native aarch64
 ./build_shutdown.sh ia32         # cross-compile for 32-bit x86
 ./build_shutdown.sh x86_64       # cross-compile for 64-bit x86
@@ -92,6 +93,7 @@ sudo apt-get install build-essential gnu-efi
 
 #### Windows
 ```bat
+build_all.bat                       # Build all architectures in sequence
 build_shutdown.bat                  # native architecture
 build_shutdown.bat x86_64           # 64-bit x86
 build_shutdown.bat ia32             # 32-bit x86
